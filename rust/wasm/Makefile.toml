@@ -36,6 +36,8 @@ f = concat ${CARGO_MAKE_CRATE_FS_NAME} ".wasm"
 src_file = join_path ${src_file} ${f}
 dst_file = join_path ${wasm_dir} ${f}
 
-echo Copy ${src_file} to ${dst_file}
-cp ${src_file} ${dst_file}
+if is_path_exists ${src_file}
+  echo Copy ${src_file} to ${dst_file}
+  cp ${src_file} ${dst_file}
+end
 '''
