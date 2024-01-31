@@ -221,7 +221,10 @@ macro_rules! drone {
                     let mut cx = core::task::Context::from_waker(&waker);
                     state.state.drone.command = match stream.poll_next(&mut cx) {
                         core::task::Poll::Pending => $crate::Command::Noop,
-                        core::task::Poll::Ready(None) => continue,
+                        core::task::Poll::Ready(None) => {
+                            state.stream = None;
+                            continue;
+                        },
                         core::task::Poll::Ready(Some(v)) => v,
                     };
                     return;
