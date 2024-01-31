@@ -1,0 +1,234 @@
+[gd_scene load_steps=24 format=3 uid="uid://4nxnf8euaexe"]
+
+[ext_resource type="PackedScene" uid="uid://ccy75pkw4orjt" path="res://gltf/drone.glb" id="1_ig8qk"]
+[ext_resource type="Script" path="res://drone/drone.gd" id="2_3e0is"]
+
+[sub_resource type="Animation" id="Animation_1830q"]
+resource_name = "Claw Engaged"
+length = 0.001
+_compression = {
+"bounds": [AABB(0, 0, 0, 0, 0, 0), AABB(0, 0, 0, 0, 0, 0), AABB(0, 0, 0, 0, 0, 0), AABB(0, 0, 0, 0, 0, 0)],
+"format_version": 1,
+"fps": 120,
+"pages": [{
+"data": PackedByteArray(48, 0, 0, 0, 1, 0, 0, 0, 52, 0, 0, 0, 60, 0, 0, 0, 1, 0, 0, 0, 64, 0, 0, 0, 72, 0, 0, 0, 1, 0, 0, 0, 76, 0, 0, 0, 84, 0, 0, 0, 1, 0, 0, 0, 88, 0, 0, 0, 0, 0, 0, 0, 84, 213, 84, 213, 85, 85, 0, 0, 0, 0, 0, 0, 255, 191, 255, 255, 255, 127, 0, 0, 0, 0, 0, 0, 170, 170, 84, 85, 85, 85, 0, 0, 0, 0, 0, 0, 255, 255, 255, 127, 255, 63, 0, 0),
+"time_offset": 0.0
+}]
+}
+tracks/0/type = "rotation_3d"
+tracks/0/imported = true
+tracks/0/enabled = true
+tracks/0/path = NodePath("Drone/Skeleton3D:Claw W")
+tracks/0/compressed_track = 0
+tracks/1/type = "rotation_3d"
+tracks/1/imported = true
+tracks/1/enabled = true
+tracks/1/path = NodePath("Drone/Skeleton3D:Claw S")
+tracks/1/compressed_track = 1
+tracks/2/type = "rotation_3d"
+tracks/2/imported = true
+tracks/2/enabled = true
+tracks/2/path = NodePath("Drone/Skeleton3D:Claw E")
+tracks/2/compressed_track = 2
+tracks/3/type = "rotation_3d"
+tracks/3/imported = true
+tracks/3/enabled = true
+tracks/3/path = NodePath("Drone/Skeleton3D:Claw N")
+tracks/3/compressed_track = 3
+
+[sub_resource type="Animation" id="Animation_7grpl"]
+resource_name = "Claw Disengage"
+length = 0.5
+_compression = {
+"bounds": [AABB(0, 0, 0, 0, 0, 0), AABB(0, 0, 0, 0, 0, 0), AABB(0, 0, 0, 0, 0, 0), AABB(0, 0, 0, 0, 0, 0)],
+"format_version": 1,
+"fps": 120,
+"pages": [{
+"data": PackedByteArray(48, 0, 0, 0, 2, 0, 0, 0, 56, 0, 0, 0, 100, 0, 0, 0, 1, 0, 0, 0, 104, 0, 0, 0, 188, 0, 0, 0, 1, 0, 0, 0, 192, 0, 0, 0, 20, 1, 0, 0, 1, 0, 0, 0, 24, 1, 0, 0, 0, 0, 0, 224, 60, 0, 9, 0, 255, 255, 255, 127, 255, 63, 0, 43, 28, 98, 14, 49, 137, 152, 67, 204, 33, 230, 16, 111, 136, 75, 196, 28, 98, 14, 49, 137, 152, 67, 188, 33, 230, 16, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 240, 84, 213, 84, 213, 85, 85, 188, 42, 68, 152, 132, 177, 102, 162, 204, 202, 144, 50, 161, 102, 106, 216, 152, 128, 19, 56, 52, 76, 220, 201, 29, 248, 101, 255, 252, 143, 234, 238, 137, 162, 200, 107, 43, 75, 181, 196, 176, 100, 169, 150, 130, 85, 2, 215, 112, 81, 41, 243, 108, 207, 220, 147, 99, 87, 118, 132, 57, 71, 140, 68, 141, 164, 133, 94, 40, 42, 150, 132, 79, 24, 7, 1, 0, 0, 0, 0, 0, 240, 170, 170, 84, 85, 85, 85, 203, 42, 36, 204, 131, 185, 102, 82, 102, 202, 148, 50, 79, 19, 106, 218, 152, 191, 249, 55, 53, 76, 238, 196, 157, 248, 165, 127, 246, 207, 234, 238, 68, 159, 232, 107, 155, 165, 179, 212, 176, 172, 212, 149, 138, 85, 126, 43, 112, 85, 41, 123, 86, 207, 222, 147, 177, 59, 118, 133, 57, 35, 118, 196, 141, 228, 66, 91, 104, 42, 54, 194, 71, 56, 7, 1, 0, 0, 0, 0, 0, 240, 255, 191, 255, 255, 255, 127, 11, 32, 212, 90, 122, 45, 209, 150, 119, 75, 197, 101, 233, 142, 120, 219, 190, 228, 96, 90, 49, 57, 153, 239, 188, 169, 230, 114, 247, 203, 1, 0, 0, 0),
+"time_offset": 0.0
+}]
+}
+tracks/0/type = "rotation_3d"
+tracks/0/imported = true
+tracks/0/enabled = true
+tracks/0/path = NodePath("Drone/Skeleton3D:Claw N")
+tracks/0/compressed_track = 0
+tracks/1/type = "rotation_3d"
+tracks/1/imported = true
+tracks/1/enabled = true
+tracks/1/path = NodePath("Drone/Skeleton3D:Claw W")
+tracks/1/compressed_track = 1
+tracks/2/type = "rotation_3d"
+tracks/2/imported = true
+tracks/2/enabled = true
+tracks/2/path = NodePath("Drone/Skeleton3D:Claw E")
+tracks/2/compressed_track = 2
+tracks/3/type = "rotation_3d"
+tracks/3/imported = true
+tracks/3/enabled = true
+tracks/3/path = NodePath("Drone/Skeleton3D:Claw S")
+tracks/3/compressed_track = 3
+
+[sub_resource type="Animation" id="Animation_lsyvx"]
+resource_name = "RESET"
+length = 0.001
+
+[sub_resource type="Animation" id="Animation_y5kwi"]
+resource_name = "Claw Disengaged"
+length = 0.001
+
+[sub_resource type="Animation" id="Animation_xepwv"]
+resource_name = "Claw Engage"
+length = 0.5
+_compression = {
+"bounds": [AABB(0, 0, 0, 0, 0, 0), AABB(0, 0, 0, 0, 0, 0), AABB(0, 0, 0, 0, 0, 0), AABB(0, 0, 0, 0, 0, 0)],
+"format_version": 1,
+"fps": 120,
+"pages": [{
+"data": PackedByteArray(48, 0, 0, 0, 2, 0, 0, 0, 56, 0, 0, 0, 112, 0, 0, 0, 1, 0, 0, 0, 116, 0, 0, 0, 200, 0, 0, 0, 1, 0, 0, 0, 204, 0, 0, 0, 32, 1, 0, 0, 1, 0, 0, 0, 36, 1, 0, 0, 0, 0, 0, 48, 16, 0, 6, 176, 0, 0, 0, 0, 0, 0, 241, 43, 244, 255, 143, 136, 8, 0, 0, 17, 17, 0, 0, 34, 2, 0, 0, 0, 255, 255, 255, 127, 16, 17, 0, 43, 44, 34, 18, 209, 136, 168, 69, 68, 34, 34, 17, 145, 136, 72, 68, 43, 34, 18, 81, 137, 8, 0, 0, 0, 0, 0, 0, 240, 255, 127, 255, 255, 255, 63, 188, 42, 44, 97, 18, 222, 1, 94, 40, 133, 174, 2, 31, 209, 17, 59, 130, 100, 39, 118, 135, 65, 61, 195, 179, 248, 96, 112, 1, 215, 149, 172, 165, 84, 106, 86, 58, 75, 178, 244, 48, 132, 34, 39, 10, 27, 250, 15, 255, 180, 14, 115, 199, 118, 230, 135, 129, 227, 55, 55, 180, 168, 129, 154, 55, 98, 202, 160, 204, 41, 53, 97, 12, 38, 155, 0, 0, 0, 0, 0, 0, 240, 255, 127, 0, 0, 255, 63, 203, 42, 148, 48, 18, 214, 1, 50, 212, 133, 170, 2, 143, 232, 17, 57, 130, 178, 67, 118, 134, 65, 159, 217, 51, 248, 32, 184, 4, 151, 149, 204, 82, 88, 74, 86, 170, 37, 180, 228, 48, 68, 17, 40, 2, 27, 254, 135, 255, 176, 14, 187, 35, 119, 228, 135, 192, 1, 56, 54, 52, 212, 136, 26, 55, 98, 101, 168, 140, 41, 181, 48, 16, 6, 155, 0, 0, 0, 0, 0, 0, 240, 255, 127, 255, 255, 255, 127, 11, 32, 4, 51, 50, 23, 169, 138, 240, 196, 78, 226, 21, 173, 131, 234, 62, 44, 30, 154, 14, 23, 135, 120, 179, 180, 225, 215, 116, 107, 0, 0, 0, 0),
+"time_offset": 0.0
+}]
+}
+tracks/0/type = "rotation_3d"
+tracks/0/imported = true
+tracks/0/enabled = true
+tracks/0/path = NodePath("Drone/Skeleton3D:Claw N")
+tracks/0/compressed_track = 0
+tracks/1/type = "rotation_3d"
+tracks/1/imported = true
+tracks/1/enabled = true
+tracks/1/path = NodePath("Drone/Skeleton3D:Claw W")
+tracks/1/compressed_track = 1
+tracks/2/type = "rotation_3d"
+tracks/2/imported = true
+tracks/2/enabled = true
+tracks/2/path = NodePath("Drone/Skeleton3D:Claw E")
+tracks/2/compressed_track = 2
+tracks/3/type = "rotation_3d"
+tracks/3/imported = true
+tracks/3/enabled = true
+tracks/3/path = NodePath("Drone/Skeleton3D:Claw S")
+tracks/3/compressed_track = 3
+
+[sub_resource type="Animation" id="Animation_a3pao"]
+resource_name = "Blade Spin-loop"
+length = 0.5
+loop_mode = 1
+_compression = {
+"bounds": [AABB(0, 0, 0, 0, 0, 0), AABB(0, 0, 0, 0, 0, 0), AABB(0, 0, 0, 0, 0, 0), AABB(0, 0, 0, 0, 0, 0)],
+"format_version": 1,
+"fps": 120,
+"pages": [{
+"data": PackedByteArray(48, 0, 0, 0, 1, 0, 0, 0, 52, 0, 0, 0, 96, 0, 0, 0, 2, 0, 0, 0, 104, 0, 0, 0, 152, 0, 0, 0, 1, 0, 0, 0, 156, 0, 0, 0, 200, 0, 0, 0, 3, 0, 0, 0, 212, 0, 0, 0, 0, 0, 0, 240, 255, 127, 255, 255, 255, 63, 16, 45, 4, 34, 38, 16, 49, 129, 136, 217, 33, 74, 34, 34, 18, 17, 141, 136, 168, 68, 68, 36, 34, 34, 17, 17, 137, 136, 72, 68, 52, 34, 34, 18, 17, 149, 136, 8, 0, 0, 0, 112, 32, 0, 6, 112, 255, 127, 255, 255, 255, 127, 0, 45, 140, 136, 24, 17, 49, 34, 98, 68, 196, 136, 136, 17, 209, 34, 34, 0, 255, 127, 0, 0, 118, 247, 0, 45, 132, 136, 9, 17, 19, 34, 38, 68, 60, 136, 152, 16, 113, 33, 98, 0, 0, 0, 0, 240, 255, 127, 0, 0, 255, 63, 16, 45, 36, 34, 34, 17, 17, 137, 136, 72, 68, 68, 34, 34, 18, 17, 141, 136, 168, 68, 68, 36, 34, 34, 17, 17, 137, 136, 232, 33, 58, 32, 98, 2, 17, 23, 136, 24, 0, 0, 0, 48, 16, 0, 6, 160, 60, 0, 14, 0, 0, 0, 0, 0, 0, 0, 31, 45, 252, 255, 19, 34, 34, 0, 0, 18, 17, 1, 0, 128, 136, 0, 0, 0, 255, 127, 255, 255, 68, 68, 0, 45, 140, 136, 24, 17, 45, 34, 106, 68, 196, 136, 136, 17, 17, 35, 34, 70, 68, 139, 136, 24, 17, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0),
+"time_offset": 0.0
+}]
+}
+tracks/0/type = "rotation_3d"
+tracks/0/imported = true
+tracks/0/enabled = true
+tracks/0/path = NodePath("Drone/Skeleton3D:Blade W")
+tracks/0/compressed_track = 0
+tracks/1/type = "rotation_3d"
+tracks/1/imported = true
+tracks/1/enabled = true
+tracks/1/path = NodePath("Drone/Skeleton3D:Blade S")
+tracks/1/compressed_track = 1
+tracks/2/type = "rotation_3d"
+tracks/2/imported = true
+tracks/2/enabled = true
+tracks/2/path = NodePath("Drone/Skeleton3D:Blade E")
+tracks/2/compressed_track = 2
+tracks/3/type = "rotation_3d"
+tracks/3/imported = true
+tracks/3/enabled = true
+tracks/3/path = NodePath("Drone/Skeleton3D:Blade N")
+tracks/3/compressed_track = 3
+
+[sub_resource type="AnimationLibrary" id="AnimationLibrary_jnkjv"]
+_data = {
+"Blade Spin": SubResource("Animation_a3pao"),
+"Claw Disengage": SubResource("Animation_7grpl"),
+"Claw Disengaged": SubResource("Animation_y5kwi"),
+"Claw Engage": SubResource("Animation_xepwv"),
+"Claw Engaged": SubResource("Animation_1830q"),
+"RESET": SubResource("Animation_lsyvx")
+}
+
+[sub_resource type="AnimationNodeAdd2" id="AnimationNodeAdd2_xxltx"]
+
+[sub_resource type="AnimationNodeAnimation" id="AnimationNodeAnimation_0s3y0"]
+animation = &"Blade Spin"
+
+[sub_resource type="AnimationNodeTimeScale" id="AnimationNodeTimeScale_8cbrd"]
+
+[sub_resource type="AnimationNodeAnimation" id="AnimationNodeAnimation_qn0e5"]
+animation = &"Claw Disengage"
+
+[sub_resource type="AnimationNodeAnimation" id="AnimationNodeAnimation_mkc55"]
+animation = &"Claw Disengaged"
+
+[sub_resource type="AnimationNodeAnimation" id="AnimationNodeAnimation_yyqsw"]
+animation = &"Claw Engage"
+
+[sub_resource type="AnimationNodeAnimation" id="AnimationNodeAnimation_wyx3i"]
+animation = &"Claw Engaged"
+
+[sub_resource type="AnimationNodeStateMachineTransition" id="AnimationNodeStateMachineTransition_8walu"]
+advance_mode = 2
+
+[sub_resource type="AnimationNodeStateMachineTransition" id="AnimationNodeStateMachineTransition_f4vlo"]
+
+[sub_resource type="AnimationNodeStateMachineTransition" id="AnimationNodeStateMachineTransition_pjvbp"]
+switch_mode = 2
+advance_mode = 2
+
+[sub_resource type="AnimationNodeStateMachineTransition" id="AnimationNodeStateMachineTransition_wpqwn"]
+
+[sub_resource type="AnimationNodeStateMachineTransition" id="AnimationNodeStateMachineTransition_rmoyu"]
+switch_mode = 2
+advance_mode = 2
+
+[sub_resource type="AnimationNodeStateMachine" id="AnimationNodeStateMachine_l4y5f"]
+"states/Claw Disengage/node" = SubResource("AnimationNodeAnimation_qn0e5")
+"states/Claw Disengage/position" = Vector2(569, 222)
+"states/Claw Disengaged/node" = SubResource("AnimationNodeAnimation_mkc55")
+"states/Claw Disengaged/position" = Vector2(405, 100)
+"states/Claw Engage/node" = SubResource("AnimationNodeAnimation_yyqsw")
+"states/Claw Engage/position" = Vector2(569, -10)
+"states/Claw Engaged/node" = SubResource("AnimationNodeAnimation_wyx3i")
+"states/Claw Engaged/position" = Vector2(725, 100)
+transitions = ["Start", "Claw Disengaged", SubResource("AnimationNodeStateMachineTransition_8walu"), "Claw Disengaged", "Claw Engage", SubResource("AnimationNodeStateMachineTransition_f4vlo"), "Claw Engage", "Claw Engaged", SubResource("AnimationNodeStateMachineTransition_pjvbp"), "Claw Engaged", "Claw Disengage", SubResource("AnimationNodeStateMachineTransition_wpqwn"), "Claw Disengage", "Claw Disengaged", SubResource("AnimationNodeStateMachineTransition_rmoyu")]
+graph_offset = Vector2(269, -66)
+
+[sub_resource type="AnimationNodeBlendTree" id="AnimationNodeBlendTree_yegx5"]
+graph_offset = Vector2(-246, 170)
+nodes/Add2/node = SubResource("AnimationNodeAdd2_xxltx")
+nodes/Add2/position = Vector2(400, 0)
+nodes/Blade/node = SubResource("AnimationNodeAnimation_0s3y0")
+nodes/Blade/position = Vector2(0, 0)
+nodes/BladeScale/node = SubResource("AnimationNodeTimeScale_8cbrd")
+nodes/BladeScale/position = Vector2(200, 0)
+nodes/Claw/node = SubResource("AnimationNodeStateMachine_l4y5f")
+nodes/Claw/position = Vector2(0, 200)
+nodes/output/position = Vector2(600, 0)
+node_connections = [&"Add2", 0, &"BladeScale", &"Add2", 1, &"Claw", &"BladeScale", 0, &"Blade", &"output", 0, &"Add2"]
+
+[node name="drone" instance=ExtResource("1_ig8qk")]
+script = ExtResource("2_3e0is")
+
+[node name="Skeleton3D" parent="Drone" index="0"]
+bones/1/rotation = Quaternion(0, 0.108648, -1.65786e-06, 0.99408)
+bones/2/rotation = Quaternion(0, -0.77974, -1.18981e-05, 0.626104)
+bones/3/rotation = Quaternion(0, 0.99408, -1.51687e-05, -0.108649)
+bones/4/rotation = Quaternion(0, 0.626048, -9.55288e-06, 0.779785)
+bones/6/rotation = Quaternion(0, -0.707107, 0, 0.707107)
+bones/8/rotation = Quaternion(0, 0.707107, 0, 0.707107)
+
+[node name="AnimationTree" type="AnimationTree" parent="." index="2"]
+libraries = {
+"": SubResource("AnimationLibrary_jnkjv")
+}
+tree_root = SubResource("AnimationNodeBlendTree_yegx5")
+anim_player = NodePath("../AnimationPlayer")
+parameters/Add2/add_amount = 1.0
+parameters/BladeScale/scale = 1.0

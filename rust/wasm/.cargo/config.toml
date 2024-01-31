@@ -1,0 +1,10 @@
+[build]
+target = "wasm32-unknown-unknown"
+rustflags = ["-C", "target-feature=+bulk-memory,+multivalue,+mutable-globals,+nontrapping-fptoint,+reference-types,+sign-ext,+simd128"]
+
+[profile.release]
+lto = true
+opt-level = "z"
+panic = "abort"
+debug-assertions = false
+overflow-checks = false

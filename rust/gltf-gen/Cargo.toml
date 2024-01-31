@@ -1,0 +1,19 @@
+[package]
+name = "gltf-gen"
+version = "0.1.0"
+edition = "2021"
+authors = ["Dheatly23 <71598333+Dheatly23@users.noreply.github.com>"]
+publish = false
+
+[dependencies]
+anyhow = { version = "1.0", features = ["backtrace"] }
+clap = { version = "4.4", features = ["derive"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+ndarray = "0.15"
+nalgebra = { version = "0.32", features = ["serde-serialize"] }
+num-traits = "0.2"
+camino = "1.1"
+either = "1.9"
+linked-hash-map = "0.5"
+image = "0.24"

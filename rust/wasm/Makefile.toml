@@ -1,0 +1,41 @@
+[env]
+CARGO_MAKE_EXTEND_WORKSPACE_MAKEFILE = true
+WASM_DIR = "../../wasm"
+WASM_CONFIG = ".cargo/config.toml"
+
+[env.development]
+BUILD_PROFILE = "dev"
+TARGET_PROFILE = "debug"
+
+[env.production]
+BUILD_PROFILE = "release"
+TARGET_PROFILE = "release"
+
+[tasks.build]
+command = "cargo"
+args = [
+  "build",
+  "--profile",
+  "${BUILD_PROFILE}",
+  "--config",
+  "${CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY}/${WASM_CONFIG}",
+  "@@split(BUILD_EXTRA_ARGS,;)",
+]
+
+[tasks.deploy]
+dependencies = ["build"]
+script_runner = "@duckscript"
+script = '''
+wasm_dir = join_path ${CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY} ${WASM_DIR}
+wasm_dir = canonicalize ${wasm_dir}
+
+src_file = join_path ${CARGO_MAKE_CRATE_TARGET_DIRECTORY} wasm32-unknown-unknown ${TARGET_PROFILE}
+
+f = concat ${CARGO_MAKE_CRATE_FS_NAME} ".wasm"
+
+src_file = join_path ${src_file} ${f}
+dst_file = join_path ${wasm_dir} ${f}
+
+echo Copy ${src_file} to ${dst_file}
+cp ${src_file} ${dst_file}
+'''

@@ -1,0 +1,38 @@
+[gd_scene load_steps=7 format=3 uid="uid://c6bbbar7jb8fs"]
+
+[ext_resource type="Script" path="res://level/level.gd" id="1_aqlf1"]
+
+[sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_hcb4l"]
+
+[sub_resource type="Sky" id="Sky_5rwf3"]
+sky_material = SubResource("ProceduralSkyMaterial_hcb4l")
+
+[sub_resource type="Environment" id="Environment_rgrgf"]
+background_mode = 2
+sky = SubResource("Sky_5rwf3")
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_fxll7"]
+albedo_color = Color(0.6, 0.6, 0.6, 1)
+
+[sub_resource type="PlaneMesh" id="PlaneMesh_wpfqk"]
+material = SubResource("StandardMaterial3D_fxll7")
+size = Vector2(1000, 1000)
+
+[node name="Level" type="Node3D"]
+script = ExtResource("1_aqlf1")
+
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="."]
+transform = Transform3D(0.866025, -0.25, 0.433013, 0, 0.866025, 0.5, -0.5, -0.433013, 0.75, 0, 0, 0)
+
+[node name="Camera3D" type="Camera3D" parent="."]
+transform = Transform3D(0.707107, -0.5, 0.5, 0, 0.707107, 0.707107, -0.707107, -0.5, 0.5, 8.66, 8.66, 8.66)
+environment = SubResource("Environment_rgrgf")
+current = true
+
+[node name="Meshes" type="Node3D" parent="."]
+
+[node name="Drones" type="Node3D" parent="."]
+
+[node name="Floor" type="MeshInstance3D" parent="."]
+visible = false
+mesh = SubResource("PlaneMesh_wpfqk")

@@ -1,0 +1,16 @@
+[package]
+name = "level-controller"
+version = "0.1.0"
+edition = "2021"
+authors = ["Dheatly23 <71598333+Dheatly23@users.noreply.github.com>"]
+publish = false
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+ndarray = "0.15"
+glam = "0.25"
+ringbuffer = { version = "0.15", default-features = false }
+rand = { version = "0.8", default-features = false }
+rand_xoshiro = "0.6"
