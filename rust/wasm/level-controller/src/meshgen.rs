@@ -11,8 +11,8 @@ use ndarray::ArrayView3;
 use super::blocks::{block_type, block_uv, BlockType};
 use super::Mesh;
 
-const DIV_U: f32 = 1. / 8.0;
-const DIV_V: f32 = 1. / 8.0;
+const DIV_U: f32 = 1. / 16.0;
+const DIV_V: f32 = 1. / 16.0;
 
 pub fn gen_mesh(data: ArrayView3<u32>, size: usize, [sx, sy, sz]: [usize; 3], mesh: &mut Mesh) {
     mesh.vertex.clear();
@@ -187,10 +187,10 @@ pub fn gen_mesh(data: ArrayView3<u32>, size: usize, [sx, sy, sz]: [usize; 3], me
                 if (z == 0) || (block_type((data[(x, y, z - 1)] & 0xff) as u8) != BlockType::Full) {
                     let i = mesh.vertex.len() as u32;
                     mesh.vertex.extend([
-                        Vec3::new((x - sx) as _, (y - sy) as _, (z - sz + 1) as _),
-                        Vec3::new((x - sx + 1) as _, (y - sy) as _, (z - sz + 1) as _),
-                        Vec3::new((x - sx) as _, (y - sy + 1) as _, (z - sz + 1) as _),
-                        Vec3::new((x - sx + 1) as _, (y - sy + 1) as _, (z - sz + 1) as _),
+                        Vec3::new((x - sx) as _, (y - sy) as _, (z - sz) as _),
+                        Vec3::new((x - sx + 1) as _, (y - sy) as _, (z - sz) as _),
+                        Vec3::new((x - sx) as _, (y - sy + 1) as _, (z - sz) as _),
+                        Vec3::new((x - sx + 1) as _, (y - sy + 1) as _, (z - sz) as _),
                     ]);
                     mesh.normal.extend(iter::repeat(Vec3::NEG_Z).take(4));
                     mesh.tangent

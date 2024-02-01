@@ -326,16 +326,15 @@ pub fn execute_commands(state: &mut State) {
         let Some(c) = dir.move_coord(&size, (d.x, d.y, d.z)) else {
             continue;
         };
-        let b = &mut state.data[c];
-        let t = (*b & 0xff) as u8;
+        let t = (state.data[c] & 0xff) as u8;
         if t != 0 {
             continue;
         }
 
-        let Some(t) = block_place(i.into()) else {
+        let Some(t) = block_place(i.into(), c, &state.data) else {
             continue;
         };
-        *b |= t as u32;
+        state.data[c] |= t as u32;
         mark_dirty(&mut state.mesh, state.chunks_size, c);
         slot.count -= 1;
         if slot.count == 0 {

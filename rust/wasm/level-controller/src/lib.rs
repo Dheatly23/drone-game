@@ -219,9 +219,9 @@ pub extern "C" fn generate_mesh() {
 
     let data = state.data.view();
     for ((x, y, z), mesh) in state.mesh.indexed_iter_mut() {
-        if !mesh.dirty {
-            continue;
-        }
+        //if !mesh.dirty {
+        //    continue;
+        //}
         meshgen::gen_mesh(
             data,
             state.chunks_size,

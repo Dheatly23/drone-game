@@ -2,6 +2,9 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+use std::num::NonZeroU8;
+
+use ndarray::Array3;
 use rand::Rng;
 
 use super::drone::Inventory;
@@ -14,7 +17,8 @@ pub enum BlockType {
 }
 
 macro_rules! blocks {
-    (#dist $r:ident ..) => {$r.gen()};
+    (#dist $r:ident ..) => {$r.gen(0..Inventory::MAX_STACK)};
+    (#dist $r:ident $n:literal) => {$n};
     (#dist $r:ident ..$b:literal) => {$r.gen(0..$b)};
     (#dist $r:ident $a:literal..$b:literal) => {$r.gen($a..$b)};
     ($t:ident $ty:tt $id:literal _) => {};
@@ -26,12 +30,18 @@ macro_rules! blocks {
     (drop ($ty:ident $r:ident $f:ident) $id:literal [$($itd:literal => $d:tt),* $(,)?]) => {
         if $ty == $id {
             return $f(&mut [$(
-                Inventory::new($itd.into(), blocks!(#dist $r $d))
+                Inventory::new(NonZeroU8::new($itd), blocks!(#dist $r $d))
             ),*]);
         }
     };
-    (place $ty:ident $id:literal $it:literal) => {
+    (place ($ty:ident $c:ident $data:ident) $id:literal $it:literal) => {
         if $ty == $it {
+            return Some($id);
+        }
+    };
+    (place ($ty:ident $c:ident $data:ident) $id:literal ($it:literal => |$c_:ident, $data_:ident| $b:block)) => {
+        let f = |$c_: (usize, usize, usize), $data_: &Array3<u32>| -> bool $b;
+        if ($ty == $it) && f($c, $data) {
             return Some($id);
         }
     };
@@ -65,13 +75,18 @@ macro_rules! blocks {
             T::default()
         }
 
-        pub const fn block_place(_it: u8) -> Option<u8> {
-            $(blocks!{place (_ty _r _f) $id $p})*
+        pub const fn block_place(_it: u8, _c: (usize, usize, usize), _data: &Array3<u32>) -> Option<u8> {
+            $(blocks!{place (_it _c _data) $id $p})*
             None
         }
     };
 }
 
 blocks! {
+    // Air
     0 : (Empty, _, _, _),
+    // Dirt
+    1 : (Full, [0, 0], [1 => 1], 1),
+    // Grass
+    2 : (Full, [1, 0], [1 => 1], _),
 }
