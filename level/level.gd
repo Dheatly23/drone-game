@@ -8,6 +8,7 @@ class_name LevelController
 const MESH_SIZE := 44
 const DRONE_SIZE := 36
 
+@export var material: Material = null
 @export_range(1, 128) var size_x: int = 1
 @export_range(1, 128) var size_y: int = 1
 @export_range(1, 128) var size_z: int = 1
@@ -26,7 +27,7 @@ func step():
 	if inst == null:
 		return
 
-	var data := inst.memory_read(ptr + 12, size_x * size_y * size_z * 4)
+	var data := inst.memory_read(inst.get_32(ptr + 12), size_x * size_y * size_z * 4)
 	var drone_ptr := inst.get_32(ptr + 28)
 	for i in range(len(drones)):
 		var d := drones[i]
@@ -35,12 +36,22 @@ func step():
 		var c = d.step()
 		inst.memory_write(p + 12, c)
 	inst.call_wasm(&"step", [])
+
 	update_meshes()
+	for i in range(len(drones)):
+		var d := drones[i]
+		var p := drone_ptr + DRONE_SIZE * i
+		d.coord = Vector3i(
+			inst.get_32(p),
+			inst.get_32(p + 4),
+			inst.get_32(p + 8),
+		)
 
 func mark_all_dirty():
 	if inst == null:
 		return
 	inst.call_wasm(&"mark_all_dirty", [])
+	update_meshes()
 
 func pubsub_publish(key: PackedByteArray, msg: PackedByteArray):
 	__key = key
@@ -68,7 +79,7 @@ func update_meshes():
 	arr.resize(Mesh.ARRAY_MAX)
 	for m in meshes:
 		var mesh: ArrayMesh = m.mesh
-		var p: int = m.p
+		var p: int = m.ptr
 		if inst.get_8(p) == 0:
 			continue
 
@@ -100,6 +111,7 @@ func update_meshes():
 			TYPE_PACKED_INT32_ARRAY,
 		)
 		mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arr)
+		mesh.surface_set_material(0, material)
 
 func __read_key(p: int) -> void:
 	inst.memory_write(p, __key)
@@ -185,7 +197,7 @@ func _ready():
 		inst.put_32(p + 8, d.coord.z)
 	inst.call_wasm(&"update_all_drones", [])
 
-	var data := inst.memory_read(ptr + 12, size_x * size_y * size_z * 4)
+	var data := inst.memory_read(inst.get_32(ptr + 12), size_x * size_y * size_z * 4)
 	for i in range(len(drones)):
 		var d := drones[i]
 		var p := drone_ptr + DRONE_SIZE * i

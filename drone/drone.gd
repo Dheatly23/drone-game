@@ -11,7 +11,10 @@ extends Node3D
 				&"Claw Engaged" if v else &"Claw Disengaged"
 			)
 		claw_open = v
-@export var coord := Vector3i.ZERO
+@export var coord := Vector3i.ZERO:
+	set(v):
+		position = Vector3(v)
+		coord = v
 
 var level: LevelController = null
 var module: WasmModule = null
