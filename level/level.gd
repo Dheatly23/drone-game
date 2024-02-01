@@ -12,6 +12,7 @@ const DRONE_SIZE := 36
 @export_range(1, 128) var size_x: int = 1
 @export_range(1, 128) var size_y: int = 1
 @export_range(1, 128) var size_z: int = 1
+@export_range(1, 65536) var tick_count: int = 1
 
 var inst: WasmInstance = null
 var ptr: int = 0
@@ -166,6 +167,7 @@ func _ready():
 		size_y,
 		size_z,
 		len(drones),
+		tick_count,
 	])
 	ptr = ret[0]
 

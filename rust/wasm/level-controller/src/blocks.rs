@@ -45,7 +45,15 @@ macro_rules! blocks {
             return Some($id);
         }
     };
-    ($($id:literal : ($t:ident, $uv:tt, $d:tt, $p:tt)),* $(,)?) => {
+    (tick ($ty:ident $r:ident $c:ident $data:ident) $id:literal |$r_:ident, $c_:ident, $data_:ident| $b:block) => {
+        let f = |$r_: &mut R, $c_: (usize, usize, usize), $data_: &Array3<u32>| -> Option<u32> $b;
+        if $ty == $id {
+            if let Some(b) = f(&mut *$r, $c, &*$data) {
+                $data[$c] = b;
+            }
+        }
+    };
+    ($($id:literal : ($t:ident, $uv:tt, $d:tt, $p:tt, $rt:tt)),* $(,)?) => {
         pub const fn is_valid(ty: u8) -> bool {
             match ty {
                 $($id)|* => true,
@@ -79,14 +87,28 @@ macro_rules! blocks {
             $(blocks!{place (_it _c _data) $id $p})*
             None
         }
+
+        pub fn random_tick<R, F>(_r: &mut R, mut c: F, _data: &mut Array3<u32>)
+        where
+            R: Rng,
+            F: FnMut(&mut R) -> Option<(usize, usize, usize)>,
+        {
+            while let Some(c) = c(&mut *_r) {
+                let Some(&_b) = _data.get(c) else {
+                    continue;
+                };
+
+                $(blocks!{place (_b _r c _data) $id $rt})*
+            }
+        }
     };
 }
 
 blocks! {
     // Air
-    0 : (Empty, _, _, _),
+    0 : (Empty, _, _, _, _),
     // Dirt
-    1 : (Full, [0, 0], [1 => 1], 1),
+    1 : (Full, [0, 0], [1 => 1], 1, _),
     // Grass
-    2 : (Full, [1, 0], [1 => 1], _),
+    2 : (Full, [1, 0], [1 => 1], _, _),
 }

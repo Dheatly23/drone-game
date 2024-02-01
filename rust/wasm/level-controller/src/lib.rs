@@ -13,7 +13,7 @@ use std::rc::Rc;
 
 use glam::f32::*;
 use ndarray::{s, Array, Array3, Dimension};
-use rand::SeedableRng;
+use rand::{Rng, SeedableRng};
 use rand_xoshiro::Xoshiro512StarStar;
 
 #[derive(Debug, Default)]
@@ -64,6 +64,7 @@ const OCCUPIED_FLAG: u32 = 0x8000_0000;
 
 struct State {
     rng: Xoshiro512StarStar,
+    tick_count: usize,
     data: Array3<u32>,
 
     chunks_size: usize,
@@ -94,7 +95,13 @@ pub struct ExportState {
 }
 
 impl State {
-    fn new(seed: u64, size: [usize; 3], chunks_size: usize, drone_count: usize) -> Self {
+    fn new(
+        seed: u64,
+        size: [usize; 3],
+        chunks_size: usize,
+        drone_count: usize,
+        tick_count: usize,
+    ) -> Self {
         let mut data = Array::zeros(size);
         let shape = [
             (size[0] + (chunks_size - 1)) / chunks_size,
@@ -124,6 +131,7 @@ impl State {
 
         Self {
             rng: Xoshiro512StarStar::seed_from_u64(seed),
+            tick_count,
             data,
             chunks_size,
             mesh,
@@ -202,11 +210,18 @@ pub extern "C" fn init(
     size_y: usize,
     size_z: usize,
     drone_count: usize,
+    tick_count: usize,
 ) -> *mut ExportState {
     const CHUNKS_SIZE: usize = 16;
 
     unsafe {
-        let mut state = State::new(seed, [size_x, size_y, size_z], CHUNKS_SIZE, drone_count);
+        let mut state = State::new(
+            seed,
+            [size_x, size_y, size_z],
+            CHUNKS_SIZE,
+            drone_count,
+            tick_count,
+        );
         write_export(&mut state);
         STATE = Some(state);
         &mut EXPORT
@@ -240,7 +255,23 @@ pub extern "C" fn generate_mesh() {
 #[no_mangle]
 pub extern "C" fn step() {
     let state = unsafe { STATE.as_mut().unwrap() };
+
     drone::execute_commands(state);
+
+    let (sx, sy, sz) = state.data.raw_dim().into_pattern();
+    let mut n = 0;
+    blocks::random_tick(
+        &mut state.rng,
+        |r| {
+            if n >= state.tick_count {
+                return None;
+            }
+            n += 1;
+            Some((r.gen_range(0..sx), r.gen_range(0..sy), r.gen_range(0..sz)))
+        },
+        &mut state.data,
+    );
+
     write_export(state);
 }
 
