@@ -16,7 +16,7 @@ drone! {
         }
 
         // Move left until can't
-        while ctx.drone.x == ctx.data.raw_dim()[0] - 1 {
+        while ctx.drone.x != ctx.data.raw_dim()[0] - 1 {
             let prev_x = ctx.drone.x;
             ctx.send(Command::Move(Dir::Left)).await.unwrap();
             if ctx.drone.x == prev_x {
