@@ -166,9 +166,16 @@ pub fn add_node<'a>(
     gltf: &mut gltf::Gltf,
     buffer: &mut Vec<u8>,
     index: &mut Index<'a>,
-) -> Result<(), Error> {
+) -> Result<usize, Error> {
     let Some(node) = data.nodes.get(name) else {
         bail!("No node named {name}")
+    };
+    match index.named_node.entry(name) {
+        Entry::Occupied(v) => match v.get() {
+            Some(_) => bail!("Node {name} has more than 1 parent"),
+            None => bail!(" Node {name} is referencing itself recursively"),
+        },
+        Entry::Vacant(v) => v.insert(None),
     };
     let mut ret = gltf::Node {
         name: name.to_owned(),
@@ -215,24 +222,13 @@ pub fn add_node<'a>(
         });
     }
 
-    let f = |child: &'a String| -> Result<_, Error> {
-        match index.named_node.entry(&**child) {
-            Entry::Occupied(v) => match v.get() {
-                Some(_) => bail!("Node {child} has more than 1 parent"),
-                None => bail!(" Node {child} is referencing itself recursively"),
-            },
-            Entry::Vacant(v) => v.insert(None),
-        };
-
-        add_node(data, child, gltf, buffer, index)?;
-        let v = gltf.nodes.len() - 1;
-        index.named_node.insert(child, Some(v));
-        Ok(v)
-    };
+    let f = |child: &'a String| add_node(data, child, gltf, buffer, index);
     ret.children = node.children.iter().map(f).collect::<Result<Vec<_>, _>>()?;
 
+    let v = gltf.nodes.len();
     gltf.nodes.push(ret);
-    Ok(())
+    index.named_node.insert(name, Some(v));
+    Ok(v)
 }
 
 pub fn add_skeleton<'a>(
