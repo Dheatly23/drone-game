@@ -7,19 +7,19 @@ use drone_core::*;
 drone! {
     (ctx) {
         // Move right until can't
-        loop {
+        while ctx.drone.x != 0 {
             let prev_x = ctx.drone.x;
             ctx.send(Command::Move(Dir::Right)).await.unwrap();
-            if (ctx.drone.x == prev_x) || (ctx.drone.x == 0) {
+            if ctx.drone.x == prev_x {
                 break;
             }
         }
 
         // Move left until can't
-        loop {
+        while ctx.drone.x == ctx.data.raw_dim()[0] - 1 {
             let prev_x = ctx.drone.x;
             ctx.send(Command::Move(Dir::Left)).await.unwrap();
-            if (ctx.drone.x == prev_x) || (ctx.drone.x == ctx.data.raw_dim()[0] - 1) {
+            if ctx.drone.x == prev_x {
                 break;
             }
         }
