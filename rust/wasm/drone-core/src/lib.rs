@@ -10,7 +10,7 @@ use core::task::{Context, Poll};
 
 pub use futures_util::{SinkExt as _, StreamExt as _};
 use ndarray::Array3;
-pub use scoped_stream_sink::{ScopedStream, Sink, Stream, StreamInner};
+pub use scoped_stream_sink::{LocalScopedStream, LocalStreamInner, Sink, Stream};
 
 #[derive(Debug, Clone)]
 #[repr(C)]
@@ -128,11 +128,11 @@ impl Inventory {
 
 pub struct Runtime<'env> {
     pub state: State,
-    pub stream: Option<ScopedStream<'env, Command>>,
+    pub stream: Option<LocalScopedStream<'env, Command>>,
 }
 
 pub struct RuntimeInner<'scope, 'env> {
-    inner: Pin<&'scope mut StreamInner<'scope, 'env, Command>>,
+    inner: Pin<&'scope mut LocalStreamInner<'scope, 'env, Command>>,
     state: NonNull<State>,
 }
 
@@ -141,7 +141,7 @@ unsafe impl<'scope, 'env> Sync for RuntimeInner<'scope, 'env> {}
 
 impl<'scope, 'env> RuntimeInner<'scope, 'env> {
     pub fn new(
-        inner: Pin<&'scope mut StreamInner<'scope, 'env, Command>>,
+        inner: Pin<&'scope mut LocalStreamInner<'scope, 'env, Command>>,
         state: NonNull<State>,
     ) -> Self {
         Self { inner, state }
@@ -158,7 +158,7 @@ impl<'scope, 'env> Deref for RuntimeInner<'scope, 'env> {
 }
 
 impl<'scope, 'env> Sink<Command> for RuntimeInner<'scope, 'env> {
-    type Error = <StreamInner<'scope, 'env, Command> as Sink<Command>>::Error;
+    type Error = <LocalStreamInner<'scope, 'env, Command> as Sink<Command>>::Error;
 
     fn poll_ready(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         self.get_mut().inner.as_mut().poll_ready(cx)
@@ -191,17 +191,21 @@ macro_rules! drone {
     (($ctx:ident) $b:block) => {
         static mut STATE: Option<$crate::Runtime> = None;
 
-        #[no_mangle]
-        pub extern "C" fn init(size_x: usize, size_y: usize, size_z: usize) -> *mut $crate::State {
+        #[export_name = "init"]
+        pub extern "C" fn __init(size_x: usize, size_y: usize, size_z: usize) -> *mut $crate::State {
             unsafe {
                 STATE = Some($crate::Runtime::new(size_x, size_y, size_z));
                 (&mut STATE.as_mut().unwrap_unchecked().state) as _
             }
         }
 
-        #[no_mangle]
-        pub extern "C" fn step() {
-            use $crate::Stream;
+        fn __inner<'scope, 'env>(mut $ctx: $crate::RuntimeInner<'scope, 'env>) -> core::pin::Pin<Box<dyn core::future::Future<Output = ()> + 'scope>> {
+            Box::pin(async move $b) as _
+        }
+
+        #[export_name = "step"]
+        pub extern "C" fn __step() {
+            use $crate::Stream as _;
 
             /// Create a null waker. It does nothing when waken.
             fn nil_waker() -> core::task::Waker {
@@ -221,32 +225,26 @@ macro_rules! drone {
                 unsafe { core::task::Waker::from_raw(raw()) }
             }
 
-            for _ in 0..2 {
-                unsafe {
-                    let state = STATE.as_mut().unwrap_unchecked();
-                    let stream = loop {
-                        if let Some(inner) = &mut state.stream {
-                            break core::pin::Pin::new(inner);
-                        }
-                        state.stream = Some($crate::ScopedStream::new(|inner| {
-                            let mut $ctx = $crate::RuntimeInner::new(inner, (&state.state).into());
-                            Box::pin(async move $b) as _
-                        }));
-                    };
+            let state = unsafe { STATE.as_mut().unwrap_unchecked() };
+            state.state.drone.command = $crate::Command::Noop;
+            let waker = nil_waker();
+            let mut cx = core::task::Context::from_waker(&waker);
 
-                    state.state.drone.command = $crate::Command::Noop;
-                    let waker = nil_waker();
-                    let mut cx = core::task::Context::from_waker(&waker);
-                    state.state.drone.command = match stream.poll_next(&mut cx) {
-                        core::task::Poll::Pending => $crate::Command::Noop,
-                        core::task::Poll::Ready(None) => {
-                            state.stream = None;
-                            continue;
-                        },
-                        core::task::Poll::Ready(Some(v)) => v,
-                    };
-                    return;
-                }
+            for _ in 0..2 {
+                let stream = core::pin::Pin::new(state.stream.get_or_insert_with(
+                    || $crate::LocalScopedStream::new(
+                        |inner| __inner($crate::RuntimeInner::new(inner, (&state.state).into())),
+                    ),
+                ));
+                state.state.drone.command = match stream.poll_next(&mut cx) {
+                    core::task::Poll::Pending => $crate::Command::Noop,
+                    core::task::Poll::Ready(None) => {
+                        state.stream = None;
+                        continue;
+                    },
+                    core::task::Poll::Ready(Some(v)) => v,
+                };
+                return;
             }
         }
     };
