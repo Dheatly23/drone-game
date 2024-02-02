@@ -9,3 +9,4 @@ publish = false
 [dependencies]
 ndarray = "0.15"
 scoped-stream-sink = "1"
+futures-util = { version = "0.3", features = ["sink"] }

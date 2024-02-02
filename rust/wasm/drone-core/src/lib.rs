@@ -6,7 +6,9 @@ use core::num::NonZeroU8;
 use core::ops::Deref;
 use core::pin::Pin;
 use core::ptr::NonNull;
+use core::task::{Context, Poll};
 
+pub use futures_util::{SinkExt as _, StreamExt as _};
 use ndarray::Array3;
 pub use scoped_stream_sink::{ScopedStream, Sink, Stream, StreamInner};
 
@@ -144,10 +146,6 @@ impl<'scope, 'env> RuntimeInner<'scope, 'env> {
     ) -> Self {
         Self { inner, state }
     }
-
-    pub fn inner(&'_ mut self) -> Pin<&'_ mut StreamInner<'scope, 'env, Command>> {
-        self.inner.as_mut()
-    }
 }
 
 impl<'scope, 'env> Deref for RuntimeInner<'scope, 'env> {
@@ -156,6 +154,26 @@ impl<'scope, 'env> Deref for RuntimeInner<'scope, 'env> {
     fn deref(&self) -> &State {
         // SAFETY: State is not accessed by outer
         unsafe { &*self.state.as_ptr() }
+    }
+}
+
+impl<'scope, 'env> Sink<Command> for RuntimeInner<'scope, 'env> {
+    type Error = <StreamInner<'scope, 'env, Command> as Sink<Command>>::Error;
+
+    fn poll_ready(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+        self.get_mut().inner.as_mut().poll_ready(cx)
+    }
+
+    fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+        self.get_mut().inner.as_mut().poll_flush(cx)
+    }
+
+    fn start_send(self: Pin<&mut Self>, item: Command) -> Result<(), Self::Error> {
+        self.get_mut().inner.as_mut().start_send(item)
+    }
+
+    fn poll_close(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+        self.get_mut().inner.as_mut().poll_close(cx)
     }
 }
 
