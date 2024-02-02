@@ -5,6 +5,8 @@
 extends Node3D
 class_name LevelController
 
+signal emit_log(message: String)
+
 const MESH_SIZE := 44
 const DRONE_SIZE := 36
 
@@ -114,6 +116,9 @@ func update_meshes():
 		mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arr)
 		mesh.surface_set_material(0, material)
 
+func __log(p: int, n: int) -> void:
+	emit_log.emit(inst.memory_read(p, n).get_string_from_utf8())
+
 func __read_key(p: int) -> void:
 	inst.memory_write(p, __key)
 
@@ -130,6 +135,11 @@ func _ready():
 	var file: WasmFile = load("res://wasm/level_controller.wasm")
 	inst = file.instantiate(
 		{
+			log = {
+				params = [WasmHelper.TYPE_I32, WasmHelper.TYPE_I32],
+				results = [],
+				callable = __log,
+			},
 			read_key = {
 				params = [WasmHelper.TYPE_I32],
 				results = [],

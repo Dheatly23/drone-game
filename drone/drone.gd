@@ -4,6 +4,9 @@
 
 extends Node3D
 
+signal emit_log(message: String)
+
+@export var config_data := PackedByteArray()
 @export var claw_open := false:
 	set(v):
 		if v != claw_open and animation != null:
@@ -38,6 +41,9 @@ func step() -> PackedByteArray:
 	inst.call_wasm(&"step", [])
 	return inst.memory_read(ptr + 16, 3)
 
+func __log(p: int, n: int) -> void:
+	emit_log.emit(inst.memory_read(p, n).get_string_from_utf8())
+
 func __read_key_msg(pk: int, pm: int) -> void:
 	inst.memory_write(pk, __key)
 	inst.memory_write(pm, __msg)
@@ -60,6 +66,12 @@ func __pubsub_get() -> void:
 		__key = PackedByteArray()
 		__msg = PackedByteArray()
 
+func __get_config_length() -> int:
+	return len(config_data)
+
+func __get_config(p: int) -> void:
+	inst.memory_write(p, config_data)
+
 func _ready():
 	animation[&"parameters/Claw/playback"].travel(
 		&"Claw Engaged" if claw_open else &"Claw Disengaged"
@@ -70,6 +82,11 @@ func _ready():
 	inst = WasmInstance.new().initialize(
 		module,
 		{
+			log = {
+				params = [WasmHelper.TYPE_I32, WasmHelper.TYPE_I32],
+				results = [],
+				callable = __log,
+			},
 			read_key_msg = {
 				params = [WasmHelper.TYPE_I32, WasmHelper.TYPE_I32],
 				results = [],
@@ -94,6 +111,16 @@ func _ready():
 				params = [],
 				results = [],
 				callable = __pubsub_get,
+			},
+			get_config_length = {
+				params = [],
+				results = [WasmHelper.TYPE_I32],
+				callable = __get_config_length,
+			},
+			get_config = {
+				params = [WasmHelper.TYPE_I32],
+				results = [],
+				callable = __get_config,
 			},
 		},
 		{

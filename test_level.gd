@@ -1,16 +1,22 @@
 extends Node3D
 
+func __log(message: String):
+	# For now, print
+	print(message)
+
 func _ready():
 	var level := preload("res://level/level.tscn").instantiate()
 	level.size_x = 16
 	level.size_y = 16
 	level.size_z = 16
 	level.name = "Level"
+	level.emit_log.connect(__log)
 
 	var drone := preload("res://drone/drone.tscn").instantiate()
 	drone.module = preload("res://wasm/test_drone.wasm").get_module()
 	drone.level = level
 	drone.name = "Drone 1"
+	drone.emit_log.connect(__log)
 	level.get_node(^"Drones").add_child(drone)
 
 	add_child(level)
