@@ -7,6 +7,8 @@ mod blocks;
 mod drone;
 mod meshgen;
 mod pubsub;
+#[cfg(test)]
+mod tests;
 
 use std::ptr;
 use std::rc::Rc;
@@ -196,174 +198,177 @@ impl ExportState {
     }
 }
 
-static mut STATE: Option<State> = None;
-static mut EXPORT: ExportState = ExportState::new();
+#[cfg(not(test))]
+const _: () = {
+    static mut STATE: Option<State> = None;
+    static mut EXPORT: ExportState = ExportState::new();
 
-fn write_export(state: &mut State) {
-    unsafe { state.write_export(&mut EXPORT) }
-}
+    fn write_export(state: &mut State) {
+        unsafe { state.write_export(&mut EXPORT) }
+    }
 
-#[no_mangle]
-pub extern "C" fn init(
-    seed: u64,
-    size_x: usize,
-    size_y: usize,
-    size_z: usize,
-    drone_count: usize,
-    tick_count: usize,
-) -> *mut ExportState {
-    const CHUNKS_SIZE: usize = 16;
+    #[no_mangle]
+    pub extern "C" fn init(
+        seed: u64,
+        size_x: usize,
+        size_y: usize,
+        size_z: usize,
+        drone_count: usize,
+        tick_count: usize,
+    ) -> *mut ExportState {
+        const CHUNKS_SIZE: usize = 16;
 
-    unsafe {
-        let mut state = State::new(
-            seed,
-            [size_x, size_y, size_z],
-            CHUNKS_SIZE,
-            drone_count,
-            tick_count,
+        unsafe {
+            let mut state = State::new(
+                seed,
+                [size_x, size_y, size_z],
+                CHUNKS_SIZE,
+                drone_count,
+                tick_count,
+            );
+            write_export(&mut state);
+            STATE = Some(state);
+            &mut EXPORT
+        }
+    }
+
+    #[no_mangle]
+    pub extern "C" fn generate_mesh() {
+        let state = unsafe { STATE.as_mut().unwrap() };
+
+        let data = state.data.view();
+        for ((x, y, z), mesh) in state.mesh.indexed_iter_mut() {
+            //if !mesh.dirty {
+            //    continue;
+            //}
+            meshgen::gen_mesh(
+                data,
+                state.chunks_size,
+                [
+                    x * state.chunks_size,
+                    y * state.chunks_size,
+                    z * state.chunks_size,
+                ],
+                mesh,
+            );
+        }
+
+        write_export(state);
+    }
+
+    #[no_mangle]
+    pub extern "C" fn step() {
+        let state = unsafe { STATE.as_mut().unwrap() };
+
+        drone::execute_commands(state);
+
+        let (sx, sy, sz) = state.data.raw_dim().into_pattern();
+        let mut n = 0;
+        blocks::random_tick(
+            &mut state.rng,
+            |r| {
+                if n >= state.tick_count {
+                    return None;
+                }
+                n += 1;
+                Some((r.gen_range(0..sx), r.gen_range(0..sy), r.gen_range(0..sz)))
+            },
+            &mut state.data,
         );
-        write_export(&mut state);
-        STATE = Some(state);
-        &mut EXPORT
-    }
-}
 
-#[no_mangle]
-pub extern "C" fn generate_mesh() {
-    let state = unsafe { STATE.as_mut().unwrap() };
-
-    let data = state.data.view();
-    for ((x, y, z), mesh) in state.mesh.indexed_iter_mut() {
-        //if !mesh.dirty {
-        //    continue;
-        //}
-        meshgen::gen_mesh(
-            data,
-            state.chunks_size,
-            [
-                x * state.chunks_size,
-                y * state.chunks_size,
-                z * state.chunks_size,
-            ],
-            mesh,
-        );
+        write_export(state);
     }
 
-    write_export(state);
-}
-
-#[no_mangle]
-pub extern "C" fn step() {
-    let state = unsafe { STATE.as_mut().unwrap() };
-
-    drone::execute_commands(state);
-
-    let (sx, sy, sz) = state.data.raw_dim().into_pattern();
-    let mut n = 0;
-    blocks::random_tick(
-        &mut state.rng,
-        |r| {
-            if n >= state.tick_count {
-                return None;
-            }
-            n += 1;
-            Some((r.gen_range(0..sx), r.gen_range(0..sy), r.gen_range(0..sz)))
-        },
-        &mut state.data,
-    );
-
-    write_export(state);
-}
-
-#[no_mangle]
-pub extern "C" fn mark_all_dirty() {
-    let state = unsafe { STATE.as_mut().unwrap() };
-    for m in &mut state.mesh {
-        m.dirty = true;
-    }
-}
-
-#[no_mangle]
-pub extern "C" fn mark_dirty(
-    mut sx: usize,
-    mut sy: usize,
-    mut sz: usize,
-    mut ex: usize,
-    mut ey: usize,
-    mut ez: usize,
-) {
-    let state = unsafe { STATE.as_mut().unwrap() };
-
-    let (x_, y_, z_) = state.data.raw_dim().into_pattern();
-    if (ex == 0) || (ey == 0) || (ez == 0) || (sx >= x_) || (sy >= y_) || (sz >= z_) {
-        return;
+    #[no_mangle]
+    pub extern "C" fn mark_all_dirty() {
+        let state = unsafe { STATE.as_mut().unwrap() };
+        for m in &mut state.mesh {
+            m.dirty = true;
+        }
     }
 
-    ex = (sx + (ex - 1)) / state.chunks_size + 1;
-    ey = (sy + (ey - 1)) / state.chunks_size + 1;
-    ez = (sz + (ez - 1)) / state.chunks_size + 1;
-    sx /= state.chunks_size;
-    sy /= state.chunks_size;
-    sz /= state.chunks_size;
+    #[no_mangle]
+    pub extern "C" fn mark_dirty(
+        mut sx: usize,
+        mut sy: usize,
+        mut sz: usize,
+        mut ex: usize,
+        mut ey: usize,
+        mut ez: usize,
+    ) {
+        let state = unsafe { STATE.as_mut().unwrap() };
 
-    for m in state
-        .mesh
-        .slice_mut(s![sx..ex.min(x_), sy..ey.min(y_), sz..ez.min(z_)])
-    {
-        m.dirty = true;
+        let (x_, y_, z_) = state.data.raw_dim().into_pattern();
+        if (ex == 0) || (ey == 0) || (ez == 0) || (sx >= x_) || (sy >= y_) || (sz >= z_) {
+            return;
+        }
+
+        ex = (sx + (ex - 1)) / state.chunks_size + 1;
+        ey = (sy + (ey - 1)) / state.chunks_size + 1;
+        ez = (sz + (ez - 1)) / state.chunks_size + 1;
+        sx /= state.chunks_size;
+        sy /= state.chunks_size;
+        sz /= state.chunks_size;
+
+        for m in state
+            .mesh
+            .slice_mut(s![sx..ex.min(x_), sy..ey.min(y_), sz..ez.min(z_)])
+        {
+            m.dirty = true;
+        }
     }
-}
 
-#[no_mangle]
-pub extern "C" fn update_all_drones() {
-    let state = unsafe { STATE.as_mut().unwrap() };
+    #[no_mangle]
+    pub extern "C" fn update_all_drones() {
+        let state = unsafe { STATE.as_mut().unwrap() };
 
-    state.data &= !OCCUPIED_FLAG;
-    for d in &state.drones {
-        state.data[(d.x, d.y, d.z)] |= OCCUPIED_FLAG;
+        state.data &= !OCCUPIED_FLAG;
+        for d in &state.drones {
+            state.data[(d.x, d.y, d.z)] |= OCCUPIED_FLAG;
+        }
     }
-}
 
-#[link(wasm_import_module = "host")]
-extern "C" {
-    fn read_key(ptr: *mut u8);
-    fn read_key_msg(key_ptr: *mut u8, msg_ptr: *mut u8);
-    fn write_key_msg(key_len: usize, key_ptr: *const u8, msg_len: usize, msg_ptr: *const u8);
-}
-
-#[no_mangle]
-pub extern "C" fn pubsub_pop(i: usize) {
-    let state = unsafe { STATE.as_mut().unwrap() };
-
-    if let Some((key, msg)) = state.pubsub[i].pop() {
-        unsafe { write_key_msg(key.len(), key.as_ptr(), msg.len(), msg.as_ptr()) };
+    #[link(wasm_import_module = "host")]
+    extern "C" {
+        fn read_key(ptr: *mut u8);
+        fn read_key_msg(key_ptr: *mut u8, msg_ptr: *mut u8);
+        fn write_key_msg(key_len: usize, key_ptr: *const u8, msg_len: usize, msg_ptr: *const u8);
     }
-}
 
-#[no_mangle]
-pub extern "C" fn pubsub_listen(i: usize, key_len: usize) {
-    let state = unsafe { STATE.as_mut().unwrap() };
+    #[no_mangle]
+    pub extern "C" fn pubsub_pop(i: usize) {
+        let state = unsafe { STATE.as_mut().unwrap() };
 
-    state.key_cache.resize(key_len, 0);
-    unsafe { read_key(state.key_cache.as_mut_ptr()) };
+        if let Some((key, msg)) = state.pubsub[i].pop() {
+            unsafe { write_key_msg(key.len(), key.as_ptr(), msg.len(), msg.as_ptr()) };
+        }
+    }
 
-    state.pubsub.subscriber_listen(i, &*state.key_cache);
-}
+    #[no_mangle]
+    pub extern "C" fn pubsub_listen(i: usize, key_len: usize) {
+        let state = unsafe { STATE.as_mut().unwrap() };
 
-#[no_mangle]
-pub extern "C" fn pubsub_publish(key_len: usize, msg_len: usize) {
-    let state = unsafe { STATE.as_mut().unwrap() };
+        state.key_cache.resize(key_len, 0);
+        unsafe { read_key(state.key_cache.as_mut_ptr()) };
 
-    state.key_cache.resize(key_len, 0);
-    let msg = <Rc<[u8]>>::from(vec![0; msg_len]);
-    unsafe { read_key_msg(state.key_cache.as_mut_ptr(), msg.as_ptr() as *mut _) };
+        state.pubsub.subscriber_listen(i, &*state.key_cache);
+    }
 
-    state.pubsub.publish(&*state.key_cache, msg);
-}
+    #[no_mangle]
+    pub extern "C" fn pubsub_publish(key_len: usize, msg_len: usize) {
+        let state = unsafe { STATE.as_mut().unwrap() };
 
-#[no_mangle]
-pub extern "C" fn pubsub_transfer() {
-    let state = unsafe { STATE.as_mut().unwrap() };
+        state.key_cache.resize(key_len, 0);
+        let msg = <Rc<[u8]>>::from(vec![0; msg_len]);
+        unsafe { read_key_msg(state.key_cache.as_mut_ptr(), msg.as_ptr() as *mut _) };
 
-    state.pubsub.transfer();
-}
+        state.pubsub.publish(&*state.key_cache, msg);
+    }
+
+    #[no_mangle]
+    pub extern "C" fn pubsub_transfer() {
+        let state = unsafe { STATE.as_mut().unwrap() };
+
+        state.pubsub.transfer();
+    }
+};

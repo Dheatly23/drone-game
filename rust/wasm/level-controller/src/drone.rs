@@ -509,8 +509,9 @@ fn move_drone(state: &mut State) {
             f(state, j);
         }
     }
-    for i in 0..state.rev_index.len() {
-        if !matches!(state.drones[state.rev_index[i].i].command, Command::Move(_)) {
+    for mut i in 0..state.rev_index.len() {
+        i = state.rev_index[i].i;
+        if !matches!(state.drones[i].command, Command::Move(_)) {
             f(state, i);
         }
     }

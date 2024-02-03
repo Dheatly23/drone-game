@@ -15,3 +15,7 @@ glam = "0.25"
 ringbuffer = { version = "0.15", default-features = false }
 rand = { version = "0.8", default-features = false }
 rand_xoshiro = "0.6"
+
+[dev-dependencies]
+anyhow = { version = "1.0", features = ["backtrace"] }
+itertools = "0.12"
