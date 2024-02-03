@@ -2,7 +2,8 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-use std::collections::hash_map::{Entry, HashMap};
+use std::collections::btree_map::{BTreeMap, Entry as BTreeEntry};
+use std::collections::hash_map::Entry;
 use std::io::Cursor;
 use std::path::Path;
 
@@ -385,9 +386,9 @@ pub fn add_animation(
         scale_keys: Vec<(f32, Vector3<f32>)>,
     }
 
-    let mut data = HashMap::new();
+    let mut data = BTreeMap::new();
     fn f<'a>(
-        data: &mut HashMap<&'a str, Inner>,
+        data: &mut BTreeMap<&'a str, Inner>,
         gltf: &gltf::Gltf,
         index: &Index<'_>,
         name: &'a Vec<String>,
@@ -395,8 +396,8 @@ pub fn add_animation(
     ) -> Result<(), Error> {
         for name in name {
             let inner = match data.entry(name) {
-                Entry::Occupied(v) => v.into_mut(),
-                Entry::Vacant(v) => {
+                BTreeEntry::Occupied(v) => v.into_mut(),
+                BTreeEntry::Vacant(v) => {
                     let Some(&Some(ix)) = index.named_node.get(&**name) else {
                         bail!("Node {name} does not exist!")
                     };

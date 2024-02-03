@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use std::convert::Infallible;
 use std::fmt;
 use std::marker::PhantomData;
@@ -15,11 +15,11 @@ use serde::{de, Deserialize, Deserializer};
 
 #[derive(Debug, Deserialize)]
 pub struct Data {
-    pub meshes: HashMap<String, Mesh>,
-    pub nodes: HashMap<String, Node>,
-    pub materials: HashMap<String, Material>,
-    pub skeletons: HashMap<String, Skeleton>,
-    pub animations: HashMap<String, Animation>,
+    pub meshes: BTreeMap<String, Mesh>,
+    pub nodes: BTreeMap<String, Node>,
+    pub materials: BTreeMap<String, Material>,
+    pub skeletons: BTreeMap<String, Skeleton>,
+    pub animations: BTreeMap<String, Animation>,
 
     pub root_node: String,
     #[serde(skip)]
@@ -324,7 +324,7 @@ pub enum SampleWrap {
 pub struct Skeleton {
     pub root: String,
     #[serde(default)]
-    pub joints: HashMap<String, Joint>,
+    pub joints: BTreeMap<String, Joint>,
 }
 
 #[derive(Debug, Deserialize)]
