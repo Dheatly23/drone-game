@@ -8,7 +8,7 @@ class_name LevelController
 signal emit_log(message: String)
 
 const MESH_SIZE := 44
-const DRONE_SIZE := 36
+const DRONE_SIZE := 52
 
 @export var material: Material = null
 @export_range(1, 128) var size_x: int = 1

@@ -3,7 +3,7 @@
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 use std::cmp::Ordering;
-use std::num::NonZeroU8;
+use std::num::NonZeroU16;
 
 use ndarray::{Array3, Dimension};
 
@@ -71,14 +71,14 @@ impl Dir {
 #[derive(Debug, Default, Clone, Copy)]
 #[repr(C)]
 pub struct Inventory {
-    pub item_id: Option<NonZeroU8>,
+    pub item_id: Option<NonZeroU16>,
     pub count: u8,
 }
 
 impl Inventory {
     pub const MAX_STACK: u8 = 64;
 
-    pub const fn new(item_id: Option<NonZeroU8>, count: u8) -> Self {
+    pub const fn new(item_id: Option<NonZeroU16>, count: u8) -> Self {
         Self {
             count: if item_id.is_none() { 0 } else { count },
             item_id,

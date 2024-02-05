@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-use core::num::NonZeroU8;
+use core::num::NonZeroU16;
 use core::ops::Deref;
 use core::pin::Pin;
 use core::ptr::NonNull;
@@ -113,12 +113,12 @@ impl Dir {
 #[derive(Debug, Default, Clone, Copy)]
 #[repr(C)]
 pub struct Inventory {
-    pub item_id: Option<NonZeroU8>,
+    pub item_id: Option<NonZeroU16>,
     pub count: u8,
 }
 
 impl Inventory {
-    pub const fn new(item_id: Option<NonZeroU8>, count: u8) -> Self {
+    pub const fn new(item_id: Option<NonZeroU16>, count: u8) -> Self {
         Self {
             count: if item_id.is_none() { 0 } else { count },
             item_id,

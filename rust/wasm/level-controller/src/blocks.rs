@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-use std::num::NonZeroU8;
+use std::num::NonZeroU16;
 
 use ndarray::Array3;
 use rand::Rng;
@@ -30,7 +30,7 @@ macro_rules! blocks {
     (drop ($ty:ident $r:ident $f:ident) $id:literal [$($itd:literal => $d:tt),* $(,)?]) => {
         if $ty == $id {
             return $f(&mut [$(
-                Inventory::new(NonZeroU8::new($itd), blocks!(#dist $r $d))
+                Inventory::new(NonZeroU16::new($itd), blocks!(#dist $r $d))
             ),*]);
         }
     };
@@ -83,7 +83,7 @@ macro_rules! blocks {
             T::default()
         }
 
-        pub const fn block_place(_it: u8, _c: (usize, usize, usize), _data: &Array3<u32>) -> Option<u8> {
+        pub const fn block_place(_it: u16, _c: (usize, usize, usize), _data: &Array3<u32>) -> Option<u8> {
             $(blocks!{place (_it _c _data) $id $p})*
             None
         }
