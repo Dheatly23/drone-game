@@ -4,7 +4,7 @@
 
 use std::num::NonZeroU16;
 
-use ndarray::Array3;
+use ndarray::{s, Array3, Dimension};
 use rand::Rng;
 
 use super::drone::Inventory;
@@ -40,15 +40,22 @@ macro_rules! blocks {
         }
     };
     (place ($ty:ident $c:ident $data:ident) $id:literal ($it:literal => |$c_:ident, $data_:ident| $b:block)) => {
-        let f = |$c_: (usize, usize, usize), $data_: &Array3<u32>| -> bool $b;
+        let f = |$c_: (usize, usize, usize), $data_: &Array3<u32>| -> bool {$b};
         if ($ty == $it) && f($c, $data) {
             return Some($id);
         }
     };
-    (tick ($ty:ident $r:ident $c:ident $data:ident) $id:literal |$r_:ident, $c_:ident, $data_:ident| $b:block) => {
-        let f = |$r_: &mut R, $c_: (usize, usize, usize), $data_: &Array3<u32>| -> Option<u32> $b;
+    (tick ($ty:ident $r:ident $c:ident $data:ident) $id:literal (|$r_:pat_param, $c_:pat_param, $data_:pat_param| $b:block)) => {
+        let f = |$r_: &mut R, $c_: (usize, usize, usize), $data_: &Array3<u32>| -> Option<u32> {$b};
         if $ty == $id {
             if let Some(b) = f(&mut *$r, $c, &*$data) {
+                $data[$c] = b;
+            }
+        }
+    };
+    (tick ($ty:ident $r:ident $c:ident $data:ident) $id:literal $f:ident) => {
+        if $ty == $id {
+            if let Some(b) = $f(&mut *$r, $c, &*$data) {
                 $data[$c] = b;
             }
         }
@@ -98,7 +105,7 @@ macro_rules! blocks {
                     continue;
                 };
 
-                $(blocks!{place (_b _r c _data) $id $rt})*
+                $(blocks!{tick (_b _r c _data) $id $rt})*
             }
         }
     };
@@ -108,7 +115,44 @@ blocks! {
     // Air
     0 : (Empty, _, _, _, _),
     // Dirt
-    1 : (Full, [0, 0], [1 => 1], 1, _),
+    1 : (Full, [0, 0], [1 => 1], 1, (|r, (x, y, z), d| {
+        if r.gen_range(0..10u8) >= 1 {
+            return None;
+        }
+
+        let (ex, ey, ez) = d.raw_dim().into_pattern();
+
+        // Find grass
+        if d.slice(s![
+            x.saturating_sub(2)..(x + 2).min(ex - 1),
+            y.saturating_sub(2)..(y + 2).min(ey - 1),
+            z.saturating_sub(2)..(z + 2).min(ez - 1),
+        ]).iter().all(|&b| (b & 0xff) != 2) {
+            return None;
+        }
+
+        if y + 1 < ey {
+            if d.slice(s![x, y + 1.., z]).iter().any(|&b| block_type((b & 0xff) as _) != BlockType::Empty) {
+                // Occluded from sky
+                return None;
+            }
+        }
+
+        Some(2)
+    })),
     // Grass
-    2 : (Full, [1, 0], [1 => 1], _, _),
+    2 : (Full, [1, 0], [1 => 1], _, (|r, (x, y, z), d| {
+        if r.gen_range(0..10u8) >= 1 {
+            return None;
+        }
+
+        if y + 1 < d.raw_dim()[1] {
+            if d.slice(s![x, y + 1.., z]).iter().any(|&b| block_type((b & 0xff) as _) != BlockType::Empty) {
+                // Occluded from sky
+                return Some(1);
+            }
+        }
+
+        None
+    })),
 }
