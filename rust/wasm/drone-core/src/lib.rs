@@ -8,8 +8,10 @@ use core::pin::Pin;
 use core::ptr::NonNull;
 use core::task::{Context, Poll};
 
-pub use futures_util::{SinkExt as _, StreamExt as _};
 use ndarray::Array3;
+
+pub use futures_util::{SinkExt as _, StreamExt as _};
+pub use ndarray;
 pub use scoped_stream_sink::{LocalScopedStream, LocalStreamInner, Sink, Stream};
 
 #[derive(Debug, Clone)]
