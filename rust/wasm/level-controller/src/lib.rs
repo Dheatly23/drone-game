@@ -146,7 +146,7 @@ impl State {
         }
     }
 
-    fn write_export(&mut self, export: &mut ExportState) {
+    fn write_export(&mut self, export: &mut ExportState, clear_dirty: bool) {
         self.export_mesh.zip_mut_with(&self.mesh, |o, i| {
             *o = ExportMesh {
                 dirty: i.dirty,
@@ -162,8 +162,10 @@ impl State {
                 ..*o
             }
         });
-        for m in &mut self.mesh {
-            m.dirty = false;
+        if clear_dirty {
+            for m in &mut self.mesh {
+                m.dirty = false;
+            }
         }
 
         (export.size_x, export.size_y, export.size_z) = self.data.raw_dim().into_pattern();
@@ -203,8 +205,8 @@ const _: () = {
     static mut STATE: Option<State> = None;
     static mut EXPORT: ExportState = ExportState::new();
 
-    fn write_export(state: &mut State) {
-        unsafe { state.write_export(&mut EXPORT) }
+    fn write_export(state: &mut State, clear_dirty: bool) {
+        unsafe { state.write_export(&mut EXPORT, clear_dirty) }
     }
 
     #[no_mangle]
@@ -226,7 +228,7 @@ const _: () = {
                 drone_count,
                 tick_count,
             );
-            write_export(&mut state);
+            write_export(&mut state, false);
             STATE = Some(state);
             &mut EXPORT
         }
@@ -238,9 +240,9 @@ const _: () = {
 
         let data = state.data.view();
         for ((x, y, z), mesh) in state.mesh.indexed_iter_mut() {
-            //if !mesh.dirty {
-            //    continue;
-            //}
+            if !mesh.dirty {
+                continue;
+            }
             meshgen::gen_mesh(
                 data,
                 state.chunks_size,
@@ -253,7 +255,7 @@ const _: () = {
             );
         }
 
-        write_export(state);
+        write_export(state, true);
     }
 
     #[no_mangle]
@@ -276,7 +278,23 @@ const _: () = {
             &mut state.data,
         );
 
-        write_export(state);
+        let data = state.data.view();
+        for ((x, y, z), mesh) in state.mesh.indexed_iter_mut() {
+            if !mesh.dirty {
+                continue;
+            }
+            meshgen::gen_mesh(
+                data,
+                state.chunks_size,
+                [
+                    x * state.chunks_size,
+                    y * state.chunks_size,
+                    z * state.chunks_size,
+                ],
+                mesh,
+            );
+        }
+        write_export(state, true);
     }
 
     #[no_mangle]
