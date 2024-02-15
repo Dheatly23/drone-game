@@ -2,6 +2,8 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+mod extern_binds;
+
 use core::num::NonZeroU16;
 use core::ops::Deref;
 use core::pin::Pin;
@@ -13,6 +15,8 @@ use ndarray::Array3;
 pub use futures_util::{SinkExt as _, StreamExt as _};
 pub use ndarray;
 pub use scoped_stream_sink::{LocalScopedStream, LocalStreamInner, Sink, Stream};
+
+pub use crate::extern_binds::*;
 
 #[derive(Debug, Clone)]
 #[repr(C)]
