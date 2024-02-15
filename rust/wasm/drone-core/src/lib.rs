@@ -4,6 +4,7 @@
 
 mod extern_binds;
 
+use core::fmt;
 use core::num::NonZeroU16;
 use core::ops::Deref;
 use core::pin::Pin;
@@ -113,6 +114,24 @@ impl Dir {
             Self::Front if coord.2 > 0 => (coord.0, coord.1, coord.2 - 1),
             _ => return None,
         })
+    }
+}
+
+impl fmt::Display for Dir {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                Self::Noop => "Noop",
+                Self::Up => "Up",
+                Self::Down => "Down",
+                Self::Left => "Left",
+                Self::Right => "Right",
+                Self::Front => "Front",
+                Self::Back => "Back",
+            }
+        )
     }
 }
 
