@@ -326,12 +326,14 @@ pub fn execute_commands(state: &mut State) {
         let Some(c) = dir.move_coord(&size, (d.x, d.y, d.z)) else {
             continue;
         };
-        let t = (state.data[c] & 0xff) as u8;
-        if t != 0 {
+        let t = state.data[c];
+        if (t & 0xff) != 0 {
             continue;
         }
 
-        let Some(t) = block_place(i.into(), c, &state.data) else {
+        let Some(t) = block_place(i.into(), c, &state.data)
+            .filter(|&b| ((t & OCCUPIED_FLAG) == 0) || (block_type(b) != BlockType::Full))
+        else {
             continue;
         };
         state.data[c] |= t as u32;
