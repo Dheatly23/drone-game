@@ -54,6 +54,7 @@ func mark_all_dirty():
 	if inst == null:
 		return
 	inst.call_wasm(&"mark_all_dirty", [])
+	inst.call_wasm(&"generate_mesh", [])
 	update_meshes()
 
 func pubsub_publish(key: PackedByteArray, msg: PackedByteArray):
@@ -77,13 +78,12 @@ func update_meshes():
 	if inst == null:
 		return
 
-	inst.call_wasm(&"generate_mesh", [])
 	var arr := []
 	arr.resize(Mesh.ARRAY_MAX)
 	for m in meshes:
 		var mesh: ArrayMesh = m.mesh
 		var p: int = m.ptr
-		if inst.get_8(p) == 0:
+		if inst.get_32(p) == 0:
 			continue
 
 		mesh.clear_surfaces()
