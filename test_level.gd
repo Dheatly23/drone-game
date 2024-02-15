@@ -9,6 +9,7 @@ func _ready():
 	level.size_x = 16
 	level.size_y = 16
 	level.size_z = 16
+	level.tick_count = 128
 	level.name = "Level"
 	level.emit_log.connect(__log)
 
@@ -17,6 +18,7 @@ func _ready():
 	drone.level = level
 	drone.name = "Drone 1"
 	drone.emit_log.connect(__log)
+	drone.coord = Vector3i(0, 1, 0)
 	level.get_node(^"Drones").add_child(drone)
 
 	add_child(level)
@@ -27,3 +29,7 @@ func __initialize(level: LevelController):
 	level.inst.put_32(p + 4, 1)
 	level.inst.put_32(p + 8, 2)
 	level.mark_all_dirty()
+
+	p = level.inst.get_32(level.ptr + 28)
+	for i in range(p + 16, p + 52, 4):
+		level.inst.put_32(i, 0x0040_0001)
