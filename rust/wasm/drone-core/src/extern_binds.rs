@@ -1,6 +1,5 @@
 use core::cell::RefCell;
 use core::fmt::{Arguments, Write};
-use core::mem;
 
 #[link(wasm_import_module = "host")]
 extern "C" {
@@ -25,19 +24,23 @@ pub fn log(s: &str) {
     unsafe { _log(s.as_ptr(), s.len()) }
 }
 
-static mut TEMP_CFG: (bool, Vec<u8>) = (false, Vec::new());
+static mut TEMP_CFG: Option<Vec<u8>> = None;
 
 pub fn get_config() -> &'static [u8] {
     // SAFETY: Wraps extern call
     unsafe {
-        if !TEMP_CFG.0 {
-            let l = _get_config_length();
-            TEMP_CFG = (true, vec![0; l]);
-            if l > 0 {
-                _get_config(TEMP_CFG.1.as_mut_ptr());
+        loop {
+            if let Some(ret) = &TEMP_CFG {
+                return &ret;
             }
+
+            let l = _get_config_length();
+            let mut v = vec![0; l];
+            if l > 0 {
+                _get_config(v.as_mut_ptr());
+            }
+            TEMP_CFG = Some(v);
         }
-        &TEMP_CFG.1
     }
 }
 
@@ -51,7 +54,7 @@ pub fn print_log(args: Arguments) {
     log(&guard);
 }
 
-static mut TEMP_MSG: (bool, Vec<u8>, Vec<u8>) = (false, Vec::new(), Vec::new());
+static mut TEMP_MSG: Option<(Vec<u8>, Vec<u8>)> = None;
 
 #[no_mangle]
 extern "C" fn read_msg(klen: usize, mlen: usize) {
@@ -60,7 +63,7 @@ extern "C" fn read_msg(klen: usize, mlen: usize) {
         let mut kv = vec![0; klen];
         let mut mv = vec![0; mlen];
         _read_key_msg(kv.as_mut_ptr(), mv.as_mut_ptr());
-        TEMP_MSG = (true, kv, mv);
+        TEMP_MSG = Some((kv, mv));
     }
 }
 
@@ -68,12 +71,7 @@ pub fn pubsub_get() -> Option<(Vec<u8>, Vec<u8>)> {
     // SAFETY: Wraps extern call
     unsafe {
         _pubsub_get();
-        let (b, kv, mv) = mem::take(&mut TEMP_MSG);
-        if b {
-            Some((kv, mv))
-        } else {
-            None
-        }
+        TEMP_MSG.take()
     }
 }
 
