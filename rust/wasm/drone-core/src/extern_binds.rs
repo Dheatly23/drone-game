@@ -1,3 +1,4 @@
+use core::cell::RefCell;
 use core::fmt::{Arguments, Write};
 use core::mem;
 
@@ -40,15 +41,14 @@ pub fn get_config() -> &'static [u8] {
     }
 }
 
-static mut TEMP_STR: String = String::new();
+static mut TEMP_STR: RefCell<String> = RefCell::new(String::new());
 
 pub fn print_log(args: Arguments) {
-    // SAFETY: Wraps extern call
-    unsafe {
-        TEMP_STR.clear();
-        TEMP_STR.write_fmt(args).unwrap();
-        log(&TEMP_STR);
-    }
+    // SAFETY: Wraps static mut
+    let mut guard = unsafe { TEMP_STR.borrow_mut() };
+    guard.clear();
+    guard.write_fmt(args).unwrap();
+    log(&guard);
 }
 
 static mut TEMP_MSG: (bool, Vec<u8>, Vec<u8>) = (false, Vec::new(), Vec::new());
