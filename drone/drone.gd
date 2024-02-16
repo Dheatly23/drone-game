@@ -48,14 +48,14 @@ func __read_key_msg(pk: int, pm: int) -> void:
 	inst.memory_write(pk, __key)
 	inst.memory_write(pm, __msg)
 
-func __pubsub_publish(lk: int, pk: int, lm: int, pm: int) -> void:
+func __pubsub_publish(pk: int, lk: int, pm: int, lm: int) -> void:
 	level.pubsub_publish(
 		inst.memory_read(pk, lk),
 		inst.memory_read(pm, lm),
 	)
 
-func __pubsub_listen(lk: int, pk: int) -> void:
-	level.pubsub_listen(get_index(), inst.memory_read(lk, pk))
+func __pubsub_listen(pk: int, lk: int) -> void:
+	level.pubsub_listen(get_index(), inst.memory_read(pk, lk))
 
 func __pubsub_get() -> void:
 	var ret = level.pubsub_get(get_index())
