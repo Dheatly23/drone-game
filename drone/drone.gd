@@ -16,7 +16,7 @@ signal emit_log(message: String)
 		claw_open = v
 @export var coord := Vector3i.ZERO:
 	set(v):
-		position = Vector3(v)
+		position = Vector3(v) + Vector3(0.5, 0.5, 0.5)
 		coord = v
 
 var level: LevelController = null
