@@ -132,33 +132,35 @@ func __write_key_msg(lk: int, pk: int, lm: int, pm: int) -> void:
 	__written = true
 
 func _ready():
-	var file: WasmFile = load("res://wasm/level_controller.wasm")
-	inst = file.instantiate(
+	var module: WasmModule = preload("res://wasm/level_controller.wasm")
+	inst = module.instantiate(
 		{
-			log = {
-				params = [WasmHelper.TYPE_I32, WasmHelper.TYPE_I32],
-				results = [],
-				callable = __log,
-			},
-			read_key = {
-				params = [WasmHelper.TYPE_I32],
-				results = [],
-				callable = __read_key,
-			},
-			read_key_msg = {
-				params = [WasmHelper.TYPE_I32, WasmHelper.TYPE_I32],
-				results = [],
-				callable = __read_key_msg,
-			},
-			write_key_msg = {
-				params = [
-					WasmHelper.TYPE_I32,
-					WasmHelper.TYPE_I32,
-					WasmHelper.TYPE_I32,
-					WasmHelper.TYPE_I32,
-				],
-				results = [],
-				callable = __write_key_msg,
+			host = {
+				log = {
+					params = [WasmHelper.TYPE_I32, WasmHelper.TYPE_I32],
+					results = [],
+					callable = __log,
+				},
+				read_key = {
+					params = [WasmHelper.TYPE_I32],
+					results = [],
+					callable = __read_key,
+				},
+				read_key_msg = {
+					params = [WasmHelper.TYPE_I32, WasmHelper.TYPE_I32],
+					results = [],
+					callable = __read_key_msg,
+				},
+				write_key_msg = {
+					params = [
+						WasmHelper.TYPE_I32,
+						WasmHelper.TYPE_I32,
+						WasmHelper.TYPE_I32,
+						WasmHelper.TYPE_I32,
+					],
+					results = [],
+					callable = __write_key_msg,
+				},
 			},
 		},
 		{

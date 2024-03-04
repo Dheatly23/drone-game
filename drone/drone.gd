@@ -82,45 +82,47 @@ func _ready():
 	inst = WasmInstance.new().initialize(
 		module,
 		{
-			log = {
-				params = [WasmHelper.TYPE_I32, WasmHelper.TYPE_I32],
-				results = [],
-				callable = __log,
-			},
-			read_key_msg = {
-				params = [WasmHelper.TYPE_I32, WasmHelper.TYPE_I32],
-				results = [],
-				callable = __read_key_msg,
-			},
-			pubsub_publish = {
-				params = [
-					WasmHelper.TYPE_I32,
-					WasmHelper.TYPE_I32,
-					WasmHelper.TYPE_I32,
-					WasmHelper.TYPE_I32,
-				],
-				results = [],
-				callable = __pubsub_publish,
-			},
-			pubsub_listen = {
-				params = [WasmHelper.TYPE_I32, WasmHelper.TYPE_I32],
-				results = [],
-				callable = __pubsub_listen,
-			},
-			pubsub_get = {
-				params = [],
-				results = [],
-				callable = __pubsub_get,
-			},
-			get_config_length = {
-				params = [],
-				results = [WasmHelper.TYPE_I32],
-				callable = __get_config_length,
-			},
-			get_config = {
-				params = [WasmHelper.TYPE_I32],
-				results = [],
-				callable = __get_config,
+			host = {
+				log = {
+					params = [WasmHelper.TYPE_I32, WasmHelper.TYPE_I32],
+					results = [],
+					callable = __log,
+				},
+				read_key_msg = {
+					params = [WasmHelper.TYPE_I32, WasmHelper.TYPE_I32],
+					results = [],
+					callable = __read_key_msg,
+				},
+				pubsub_publish = {
+					params = [
+						WasmHelper.TYPE_I32,
+						WasmHelper.TYPE_I32,
+						WasmHelper.TYPE_I32,
+						WasmHelper.TYPE_I32,
+					],
+					results = [],
+					callable = __pubsub_publish,
+				},
+				pubsub_listen = {
+					params = [WasmHelper.TYPE_I32, WasmHelper.TYPE_I32],
+					results = [],
+					callable = __pubsub_listen,
+				},
+				pubsub_get = {
+					params = [],
+					results = [],
+					callable = __pubsub_get,
+				},
+				get_config_length = {
+					params = [],
+					results = [WasmHelper.TYPE_I32],
+					callable = __get_config_length,
+				},
+				get_config = {
+					params = [WasmHelper.TYPE_I32],
+					results = [],
+					callable = __get_config,
+				},
 			},
 		},
 		{

@@ -14,7 +14,7 @@ func _ready():
 	level.emit_log.connect(__log)
 
 	var drone := preload("res://drone/drone.tscn").instantiate()
-	drone.module = preload("res://wasm/test_drone.wasm").get_module()
+	drone.module = preload("res://wasm/test_drone.wasm")
 	drone.level = level
 	drone.name = "Drone 1"
 	drone.emit_log.connect(__log)
