@@ -14,8 +14,15 @@ A (WIP) game to demonstrate integrating WebAssembly into Godot.
   - [Rust](https://www.rust-lang.org)
   - [Just](https://github.com/casey/just)
   - [Nu](https://www.nushell.sh)
-2. Go to `rust` directory and run `just profile=release`.
-3. Run this project with Godot.
+2. Run `git submodule init`.
+3. Go to `rust` directory and run the following commands:
+
+  ```
+  just profile=release godot-wasm::deploy-addon
+  just profile=release deploy
+  ```
+
+4. Run this project with Godot.
 
 ## License
 

@@ -1,0 +1,3 @@
+[submodule "rust/godot-wasm"]
+	path = rust/godot-wasm
+	url = https://github.com/Dheatly23/godot-wasm.git

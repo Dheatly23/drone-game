@@ -1,0 +1,10 @@
+set shell := ["nu", "-c"]
+
+mod godot-wasm
+
+default: deploy
+
+copy-addon:
+  cp -r ./godot-wasm/out/addons ..
+
+deploy: copy-addon
