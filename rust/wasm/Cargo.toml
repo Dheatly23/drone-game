@@ -1,0 +1,30 @@
+[workspace]
+resolver = "3"
+members = [
+  "level/*",
+]
+
+[workspace.package]
+edition = "2021"
+authors = ["Dheatly23 <71598333+Dheatly23@users.noreply.github.com>"]
+license = "Apache-2.0"
+publish = false
+
+[workspace.dependencies]
+level-state.path = "level/level-state"
+
+[workspace.dependencies.rkyv]
+version = "0.8"
+features = [
+  "aligned",
+  "little_endian",
+  "pointer_width_32",
+]
+
+[profile.release]
+lto = true
+codegen-units = 1
+opt-level = "z"
+panic = "abort"
+debug-assertions = false
+overflow-checks = false

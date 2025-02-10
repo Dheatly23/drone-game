@@ -1,0 +1,56 @@
+set shell := ["nu", "-c"]
+
+profile := "debug"
+extra_args := env('BUILD_EXTRA_ARGS', "")
+
+addon_path := "./out/addons/godot_wasm"
+
+build_profile := if profile == "release" { "release" } else { "dev" }
+target_profile := if profile == "release" { "release" } else { "debug" }
+
+default: deploy
+
+build package:
+  cargo build -p {{package}} --target wasm32-unknown-unknown --profile {{build_profile}} --config ./.cargo/config.toml {{extra_args}}
+
+build-all: (build "level-controller")
+
+deploy: build-all
+  @let cmds = [[cmd closure]; \
+    ["wasm-snip" {|f| ^wasm-snip --snip-rust-panicking-code $f -o $f}] \
+    ["wasm-opt" {|f| ^wasm-opt -Oz $f -o $f}] \
+  ] | filter {which $in.cmd | is-not-empty}; \
+  ls {{quote("./target/wasm32-unknown-unknown" / target_profile)}} \
+  | append ( \
+    {{quote("./target/wasm32-wasip1" / target_profile)}} \
+    | if ( $in | path exists ) { ls $in } else { [] } \
+  ) \
+  | where ($it.name | str ends-with ".wasm") \
+  | select name size \
+  | rename from \
+  | insert to {$in.from | path dirname -r "../../wasm"} \
+  | each {|f| \
+    print $"Copy from: ($f.from)" $"Copy to: ($f.to)" $"Size: ($f.size)"; \
+    cp $f.from $f.to; \
+    $cmds | each {|c| \
+      print $"Running ($c.cmd)"; \
+      do $c.closure $f.to \
+    }; \
+    print $"Final size: (ls $f.to | $in.0.size)"; \
+  } | ignore
+
+check-all:
+  @ls ./level \
+  | get name \
+  | path basename \
+  | each { |v| \
+    print $"Crate: ($v)"; \
+    cargo check --target wasm32-unknown-unknown -p $v --config ./.cargo/config.toml {{extra_args}}; \
+    cargo clippy --target wasm32-unknown-unknown -p $v --config ./.cargo/config.toml {{extra_args}}; \
+  } | ignore
+
+fmt:
+  cargo fmt
+
+clean:
+  cargo clean

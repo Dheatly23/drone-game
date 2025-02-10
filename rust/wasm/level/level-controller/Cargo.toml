@@ -1,0 +1,15 @@
+[package]
+name = "level-controller"
+version = "0.1.0"
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+rkyv.workspace = true
+
+level-state.workspace = true

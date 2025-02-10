@@ -4,3 +4,6 @@
 
 # godot-wasm
 /addons/godot_wasm
+
+# Compiled WASM files
+*.wasm

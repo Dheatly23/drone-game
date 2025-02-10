@@ -1,0 +1,17 @@
+[target.wasm32-unknown-unknown]
+rustflags = [
+  "-C",
+  "target-cpu=bleeding-edge",
+  "-C",
+  "target-feature=+bulk-memory,+multivalue,+mutable-globals,+nontrapping-fptoint,+reference-types,+sign-ext,+simd128",
+  "--cfg",
+  "getrandom_backend=\"custom\"",
+]
+
+[target.wasm32-wasip1]
+rustflags = [
+  "-C",
+  "target-cpu=bleeding-edge",
+  "-C",
+  "target-feature=+bulk-memory,+multivalue,+mutable-globals,+nontrapping-fptoint,+reference-types,+sign-ext,+simd128",
+]

@@ -1,6 +1,7 @@
 set shell := ["nu", "-c"]
 
 mod godot-wasm
+mod wasm
 
 default: deploy
 
