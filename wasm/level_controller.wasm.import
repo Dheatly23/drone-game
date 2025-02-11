@@ -1,0 +1,15 @@
+[remap]
+
+importer="godot_wasm.wasm"
+type="WasmModule"
+uid="uid://b8hsrpjswupdr"
+path="res://.godot/imported/level_controller.wasm-b85a8eedf5a570cc23801d7f967a1976.cwasm"
+
+[deps]
+
+source_file="res://wasm/level_controller.wasm"
+dest_files=["res://.godot/imported/level_controller.wasm-b85a8eedf5a570cc23801d7f967a1976.cwasm"]
+
+[params]
+
+include_original_file=false
