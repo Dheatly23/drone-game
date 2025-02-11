@@ -1,4 +1,8 @@
+use rkyv::boxed::ArchivedBox;
+use rkyv::munge::munge;
 use rkyv::rend::u16_le;
+use rkyv::seal::Seal;
+use rkyv::vec::ArchivedVec;
 use rkyv::{Archive, Deserialize, Serialize};
 
 #[derive(Debug, Archive, Serialize, Deserialize)]
@@ -79,18 +83,119 @@ impl LevelState {
     }
 }
 
+impl ArchivedLevelState {
+    pub fn chunk_size(&self) -> (usize, usize, usize) {
+        (
+            self.chunk_x.to_native() as _,
+            self.chunk_y.to_native() as _,
+            self.chunk_z.to_native() as _,
+        )
+    }
+
+    #[inline(always)]
+    pub fn chunks(&self) -> &[ArchivedChunk] {
+        &self.chunks
+    }
+
+    pub fn chunks_mut(this: Seal<'_, Self>) -> Seal<'_, [ArchivedChunk]> {
+        munge!(let Self { chunks, .. } = this);
+        ArchivedVec::as_slice_seal(chunks)
+    }
+
+    fn get_index(&self, x: usize, y: usize, z: usize) -> Option<usize> {
+        y.checked_mul(self.chunk_z.to_native() as _)?
+            .checked_add(z)?
+            .checked_mul(self.chunk_x.to_native() as _)?
+            .checked_add(x)
+    }
+
+    #[inline(always)]
+    pub fn get_chunk(&self, x: usize, y: usize, z: usize) -> &ArchivedChunk {
+        let i = self.get_index(x, y, z).unwrap();
+        &self.chunks[i]
+    }
+
+    pub fn get_chunk_mut(
+        this: Seal<'_, Self>,
+        x: usize,
+        y: usize,
+        z: usize,
+    ) -> Seal<'_, ArchivedChunk> {
+        let i = this.get_index(x, y, z).unwrap();
+        munge!(let Self { chunks, .. } = this);
+        ArchivedVec::as_slice_seal(chunks).index(i)
+    }
+}
+
 pub const CHUNK_SIZE: usize = 16;
+const TOTAL_SIZE: usize = CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE;
 
 #[derive(Debug, Archive, Serialize, Deserialize)]
 pub struct Chunk {
-    blocks: Box<[BlockWrapper; CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE]>,
+    blocks: Box<[BlockWrapper; TOTAL_SIZE]>,
 }
 
 impl Default for Chunk {
     fn default() -> Self {
         Self {
-            blocks: Box::new([const { BlockWrapper::new() }; CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE]),
+            blocks: Box::new([const { BlockWrapper::new() }; TOTAL_SIZE]),
         }
+    }
+}
+
+impl Chunk {
+    #[inline(always)]
+    pub fn blocks(&self) -> &[BlockWrapper] {
+        &self.blocks[..]
+    }
+
+    #[inline(always)]
+    pub fn blocks_mut(&mut self) -> &mut [BlockWrapper] {
+        &mut self.blocks[..]
+    }
+
+    fn get_index(x: usize, y: usize, z: usize) -> Option<usize> {
+        y.checked_mul(CHUNK_SIZE)?
+            .checked_add(z)?
+            .checked_mul(CHUNK_SIZE)?
+            .checked_add(x)
+    }
+
+    #[inline(always)]
+    pub fn get_block(&self, x: usize, y: usize, z: usize) -> &BlockWrapper {
+        &self.blocks[Self::get_index(x, y, z).unwrap()]
+    }
+
+    #[inline(always)]
+    pub fn get_block_mut(&mut self, x: usize, y: usize, z: usize) -> &mut BlockWrapper {
+        &mut self.blocks[Self::get_index(x, y, z).unwrap()]
+    }
+}
+
+impl ArchivedChunk {
+    #[inline(always)]
+    pub fn blocks(&self) -> &[ArchivedBlockWrapper] {
+        &self.blocks[..]
+    }
+
+    pub fn blocks_mut(this: Seal<'_, Self>) -> &mut [ArchivedBlockWrapper] {
+        munge!(let Self { blocks } = this);
+        ArchivedBox::get_seal(blocks).unseal()
+    }
+
+    #[inline(always)]
+    pub fn get_block(&self, x: usize, y: usize, z: usize) -> &ArchivedBlockWrapper {
+        &self.blocks[Chunk::get_index(x, y, z).unwrap()]
+    }
+
+    pub fn get_block_mut(
+        this: Seal<'_, Self>,
+        x: usize,
+        y: usize,
+        z: usize,
+    ) -> &mut ArchivedBlockWrapper {
+        munge!(let Self { blocks } = this);
+        &mut ArchivedBox::get_seal(blocks).unseal()[Chunk::get_index(x, y, z).unwrap()]
     }
 }
 
@@ -98,7 +203,7 @@ impl Default for Chunk {
 #[repr(transparent)]
 pub struct BlockWrapper(u16);
 
-unsafe impl rkyv::traits::NoUndef for BlockWrapper {}
+unsafe impl rkyv::traits::NoUndef for ArchivedBlockWrapper {}
 
 impl Default for BlockWrapper {
     fn default() -> Self {
