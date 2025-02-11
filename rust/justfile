@@ -3,6 +3,14 @@ set shell := ["nu", "-c"]
 mod godot-wasm
 mod wasm
 
+# Variables still need to be defined for module
+# Might get fixed in a future just version
+profile := "debug"
+extra_args := env('BUILD_EXTRA_ARGS', "")
+
+build_profile := if profile == "release" { "release" } else { "dev" }
+target_profile := if profile == "release" { "release" } else { "debug" }
+
 default: deploy
 
 copy-addon:
