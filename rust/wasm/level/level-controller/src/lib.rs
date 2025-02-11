@@ -1,11 +1,15 @@
 #![allow(clippy::deref_addrof)]
 
+mod render;
+
 use rkyv::api::high::{from_bytes, to_bytes_in_with_alloc};
 use rkyv::rancor::Panic;
 use rkyv::ser::allocator::Arena;
 use rkyv::ser::writer::Buffer;
 
 use level_state::LevelState;
+
+use crate::render::{render_chunk, ExportRender};
 
 #[link(wasm_import_module = "host")]
 extern "C" {
@@ -60,4 +64,9 @@ pub extern "C" fn export() {
     unsafe {
         _write_data(buf.as_ptr(), buf.len() as _);
     }
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn get_chunk(x: u32, y: u32, z: u32) -> *const ExportRender {
+    render_chunk(unsafe { &mut *(&raw mut LEVEL) }, x as _, y as _, z as _)
 }

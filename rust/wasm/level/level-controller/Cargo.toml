@@ -10,6 +10,7 @@ publish.workspace = true
 crate-type = ["cdylib"]
 
 [dependencies]
+glam.workspace = true
 rkyv.workspace = true
 
 level-state.workspace = true

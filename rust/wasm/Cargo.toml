@@ -11,12 +11,17 @@ license = "Apache-2.0"
 publish = false
 
 [workspace.dependencies]
+glam = "^0.29"
+
 level-state.path = "level/level-state"
 
 [workspace.dependencies.rkyv]
 version = "0.8"
+default-features = false
 features = [
   "aligned",
+  "alloc",
+  "bytecheck",
   "little_endian",
   "pointer_width_32",
 ]

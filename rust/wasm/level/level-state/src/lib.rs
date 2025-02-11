@@ -1,9 +1,13 @@
+use std::iter::repeat_with;
+
 use rkyv::boxed::ArchivedBox;
 use rkyv::munge::munge;
+use rkyv::rancor::Fallible;
 use rkyv::rend::u16_le;
 use rkyv::seal::Seal;
 use rkyv::vec::ArchivedVec;
-use rkyv::{Archive, Deserialize, Serialize};
+use rkyv::with::{ArchiveWith, DeserializeWith, SerializeWith};
+use rkyv::{Archive, Deserialize, Place, Serialize};
 
 #[derive(Debug, Archive, Serialize, Deserialize)]
 pub struct LevelState {
@@ -34,14 +38,10 @@ impl LevelState {
             return Self::new_empty();
         }
 
-        let s = match x.checked_mul(y) {
-            Some(v) => v.checked_mul(z),
-            None => None,
-        }
-        .unwrap();
-
         Self {
-            chunks: (0..s).map(|_| Chunk::default()).collect(),
+            chunks: repeat_with(Chunk::default)
+                .take(x.checked_mul(y).and_then(|v| v.checked_mul(z)).unwrap())
+                .collect(),
             chunk_x: x,
             chunk_y: y,
             chunk_z: z,
@@ -64,6 +64,9 @@ impl LevelState {
     }
 
     fn get_index(&self, x: usize, y: usize, z: usize) -> Option<usize> {
+        if x >= self.chunk_x || y >= self.chunk_y || z >= self.chunk_z {
+            return None;
+        }
         y.checked_mul(self.chunk_z)?
             .checked_add(z)?
             .checked_mul(self.chunk_x)?
@@ -103,6 +106,12 @@ impl ArchivedLevelState {
     }
 
     fn get_index(&self, x: usize, y: usize, z: usize) -> Option<usize> {
+        if x >= self.chunk_x.to_native() as usize
+            || y >= self.chunk_y.to_native() as usize
+            || z >= self.chunk_z.to_native() as usize
+        {
+            return None;
+        }
         y.checked_mul(self.chunk_z.to_native() as _)?
             .checked_add(z)?
             .checked_mul(self.chunk_x.to_native() as _)?
@@ -133,12 +142,15 @@ const TOTAL_SIZE: usize = CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE;
 #[derive(Debug, Archive, Serialize, Deserialize)]
 pub struct Chunk {
     blocks: Box<[BlockWrapper; TOTAL_SIZE]>,
+    #[rkyv(with = AlwaysDirty)]
+    dirty: bool,
 }
 
 impl Default for Chunk {
     fn default() -> Self {
         Self {
             blocks: Box::new([const { BlockWrapper::new() }; TOTAL_SIZE]),
+            dirty: true,
         }
     }
 }
@@ -170,6 +182,21 @@ impl Chunk {
     pub fn get_block_mut(&mut self, x: usize, y: usize, z: usize) -> &mut BlockWrapper {
         &mut self.blocks[Self::get_index(x, y, z).unwrap()]
     }
+
+    #[inline(always)]
+    pub const fn is_dirty(&self) -> bool {
+        self.dirty
+    }
+
+    #[inline(always)]
+    pub const fn mark_clean(&mut self) {
+        self.dirty = false;
+    }
+
+    #[inline(always)]
+    pub const fn mark_dirty(&mut self) {
+        self.dirty = true;
+    }
 }
 
 impl ArchivedChunk {
@@ -179,7 +206,7 @@ impl ArchivedChunk {
     }
 
     pub fn blocks_mut(this: Seal<'_, Self>) -> &mut [ArchivedBlockWrapper] {
-        munge!(let Self { blocks } = this);
+        munge!(let Self { blocks, .. } = this);
         ArchivedBox::get_seal(blocks).unseal()
     }
 
@@ -194,7 +221,7 @@ impl ArchivedChunk {
         y: usize,
         z: usize,
     ) -> &mut ArchivedBlockWrapper {
-        munge!(let Self { blocks } = this);
+        munge!(let Self { blocks, .. } = this);
         &mut ArchivedBox::get_seal(blocks).unseal()[Chunk::get_index(x, y, z).unwrap()]
     }
 }
@@ -252,13 +279,13 @@ impl ArchivedBlockWrapper {
 }
 
 macro_rules! block_def {
-    ($($i:ident $(= $e:literal)?),* $(,)?) => {
+    ($($i:ident = ($e:literal, $s:literal)),* $(,)?) => {
         #[derive(Debug, Default, Clone, Copy, Eq, PartialEq, Hash)]
         #[repr(u16)]
         pub enum Block {
             #[default]
             Air = 0,
-            $($i $(= $e)?,)*
+            $($i = $e,)*
             Unknown = u16::MAX,
         }
 
@@ -266,8 +293,16 @@ macro_rules! block_def {
             const fn from_u16(v: u16) -> Self {
                 match v {
                     0 => Self::Air,
-                    $(v if v == Self::$i as u16 => Self::$i,)*
+                    $($e => Self::$i,)*
                     _ => Self::Unknown,
+                }
+            }
+
+            pub const fn is_solid(&self) -> bool {
+                match self {
+                    Self::Air => false,
+                    Self::Unknown => true,
+                    $(Self::$i => $s,)*
                 }
             }
         }
@@ -275,8 +310,8 @@ macro_rules! block_def {
 }
 
 block_def! {
-    Dirt,
-    Grass,
+    Dirt = (1, true),
+    Grass = (2, true),
 }
 
 impl From<u16> for Block {
@@ -290,5 +325,26 @@ impl From<Block> for u16 {
     #[inline(always)]
     fn from(v: Block) -> u16 {
         v as u16
+    }
+}
+
+struct AlwaysDirty;
+
+impl ArchiveWith<bool> for AlwaysDirty {
+    type Archived = ();
+    type Resolver = ();
+
+    fn resolve_with(_: &bool, _: Self::Resolver, _: Place<Self::Archived>) {}
+}
+
+impl<S: Fallible + ?Sized> SerializeWith<bool, S> for AlwaysDirty {
+    fn serialize_with(_: &bool, _: &mut S) -> Result<(), S::Error> {
+        Ok(())
+    }
+}
+
+impl<D: Fallible + ?Sized> DeserializeWith<(), bool, D> for AlwaysDirty {
+    fn deserialize_with(_: &(), _: &mut D) -> Result<bool, D::Error> {
+        Ok(true)
     }
 }
