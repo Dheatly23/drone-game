@@ -14,3 +14,4 @@ glam.workspace = true
 rkyv.workspace = true
 
 level-state.workspace = true
+log-util.workspace = true

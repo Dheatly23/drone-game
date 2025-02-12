@@ -4,6 +4,7 @@ use std::ptr::dangling;
 use glam::f32::{Vec2, Vec3, Vec4};
 
 use level_state::{Block, LevelState, CHUNK_SIZE};
+use log_util::log;
 
 struct Render {
     vertex: Vec<Vec3>,
@@ -44,13 +45,19 @@ static mut EXPORT_RENDER: ExportRender = ExportRender {
 };
 
 pub fn render_chunk(level: &mut LevelState, x: usize, y: usize, z: usize) -> *const ExportRender {
+    log(format_args!("coord: {x} {y} {z}"));
     let (render, export) = unsafe { (&mut *(&raw mut RENDER), &mut *(&raw mut EXPORT_RENDER)) };
 
     let (sx, sy, sz) = level.chunk_size();
+    log(format_args!("size: {sx} {sy} {sz}"));
     if x >= sx || y >= sy || z >= sz {
         panic!("Index overflow");
     }
     let i = (y * sz + z) * sx + x;
+    log(format_args!(
+        "index: {i} chunks len: {}",
+        level.chunks_mut().len()
+    ));
     let c = &mut level.chunks_mut()[i];
     if !c.is_dirty() {
         export.dirty = 0;
@@ -72,7 +79,7 @@ pub fn render_chunk(level: &mut LevelState, x: usize, y: usize, z: usize) -> *co
     } else {
         None
     };
-    let cr = if x == 0 {
+    let cr = if x > 0 {
         Some(&level.chunks()[i - 1])
     } else {
         None
@@ -82,17 +89,17 @@ pub fn render_chunk(level: &mut LevelState, x: usize, y: usize, z: usize) -> *co
     } else {
         None
     };
-    let cb = if z == 0 {
+    let cb = if z > 0 {
         Some(&level.chunks()[i - sx])
     } else {
         None
     };
-    let cu = if x < sy - 1 {
+    let cu = if y < sy - 1 {
         Some(&level.chunks()[i + sx * sz])
     } else {
         None
     };
-    let cd = if y == 0 {
+    let cd = if y > 0 {
         Some(&level.chunks()[i - sx * sz])
     } else {
         None
@@ -153,12 +160,12 @@ pub fn render_chunk(level: &mut LevelState, x: usize, y: usize, z: usize) -> *co
                 let (i, v) = it.next().unwrap();
                 let r = match v.get() {
                     Block::Dirt => RenderType::Block {
-                        uv: Vec2::new(0., 0.),
-                        duv: Vec2::new(1., 1.),
+                        uv: Vec2::new(0., 0.) / 64.,
+                        duv: Vec2::ONE / 64.,
                     },
                     Block::Grass => RenderType::Block {
-                        uv: Vec2::new(0., 0.),
-                        duv: Vec2::new(1., 1.),
+                        uv: Vec2::new(1., 0.) / 64.,
+                        duv: Vec2::ONE / 64.,
                     },
                     _ => continue,
                 };
@@ -241,7 +248,7 @@ fn draw_block(this: &mut Render, c: Vec3, uv: Vec2, duv: Vec2, b: [bool; 6]) {
     // Front
     if b[2] {
         let i = this.vertex.len() as u32;
-        this.vertex.extend([c001, c001, c011, c011]);
+        this.vertex.extend([c001, c101, c011, c111]);
         this.normal.extend(repeat(Vec3::Z).take(4));
         this.tangent.extend(repeat(Vec3::X.extend(1.)).take(4));
         this.uv.extend([uv00, uv10, uv01, uv11]);

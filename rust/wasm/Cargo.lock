@@ -43,6 +43,7 @@ version = "0.1.0"
 dependencies = [
  "glam",
  "level-state",
+ "log-util",
  "rkyv",
 ]
 
@@ -52,6 +53,10 @@ version = "0.1.0"
 dependencies = [
  "rkyv",
 ]
+
+[[package]]
+name = "log-util"
+version = "0.1.0"
 
 [[package]]
 name = "munge"

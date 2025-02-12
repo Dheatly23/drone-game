@@ -7,7 +7,7 @@ use rkyv::rancor::Panic;
 use rkyv::ser::allocator::Arena;
 use rkyv::ser::writer::Buffer;
 
-use level_state::LevelState;
+use level_state::{Block, LevelState, CHUNK_SIZE};
 
 use crate::render::{render_chunk, ExportRender};
 
@@ -37,6 +37,23 @@ pub extern "C" fn init(x: u32, y: u32, z: u32) {
     let level = unsafe { &mut *(&raw mut LEVEL) };
     *level = LevelState::new_empty();
     *level = LevelState::new(x as _, y as _, z as _);
+
+    // TODO: Testing data
+    for z in 0..z as usize {
+        for x in 0..x as usize {
+            let c = level.get_chunk_mut(x, 0, z);
+            let i = (x + z) & 1;
+            for z in 0..CHUNK_SIZE {
+                for x in 0..CHUNK_SIZE {
+                    if i != 0 {
+                        c.get_block_mut(x, 0, z).set(Block::Grass);
+                    } else if (x + z) & 1 != 0 {
+                        c.get_block_mut(x, 0, z).set(Block::Dirt);
+                    }
+                }
+            }
+        }
+    }
 }
 
 #[unsafe(no_mangle)]

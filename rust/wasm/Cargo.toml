@@ -2,6 +2,7 @@
 resolver = "3"
 members = [
   "level/*",
+  "util/*",
 ]
 
 [workspace.package]
@@ -14,6 +15,7 @@ publish = false
 glam = "^0.29"
 
 level-state.path = "level/level-state"
+log-util.path = "util/log-util"
 
 [workspace.dependencies.rkyv]
 version = "0.8"

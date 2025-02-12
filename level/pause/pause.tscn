@@ -1,0 +1,32 @@
+[gd_scene load_steps=2 format=3 uid="uid://lvyeachixp2"]
+
+[ext_resource type="Script" path="res://level/pause/pause.gd" id="1_ccamv"]
+
+[node name="Pause" type="CanvasLayer"]
+layer = 10
+
+[node name="Root" type="ColorRect" parent="."]
+process_mode = 3
+visible = false
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0, 0, 0, 0.501961)
+script = ExtResource("1_ccamv")
+
+[node name="Center" type="CenterContainer" parent="Root"]
+process_mode = 2
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="ResumeBtn" type="Button" parent="Root/Center"]
+layout_mode = 2
+text = "Resume"
+
+[connection signal="pressed" from="Root/Center/ResumeBtn" to="Root" method="__resume"]

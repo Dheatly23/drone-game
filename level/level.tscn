@@ -1,0 +1,48 @@
+[gd_scene load_steps=8 format=3 uid="uid://c7px4aj3vkc0j"]
+
+[ext_resource type="Script" path="res://level/level.gd" id="1_2xasv"]
+[ext_resource type="Script" path="res://level/camera.gd" id="1_35s18"]
+[ext_resource type="WasmModule" uid="uid://b8hsrpjswupdr" path="res://wasm/level_controller.wasm" id="2_gy2fr"]
+[ext_resource type="PackedScene" uid="uid://lvyeachixp2" path="res://level/pause/pause.tscn" id="2_vvn75"]
+
+[sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_ysven"]
+sky_horizon_color = Color(0.64625, 0.65575, 0.67075, 1)
+ground_horizon_color = Color(0.64625, 0.65575, 0.67075, 1)
+
+[sub_resource type="Sky" id="Sky_2wd7n"]
+sky_material = SubResource("ProceduralSkyMaterial_ysven")
+
+[sub_resource type="Environment" id="Environment_ju6cr"]
+background_mode = 2
+sky = SubResource("Sky_2wd7n")
+tonemap_mode = 2
+glow_enabled = true
+
+[node name="Level" type="Node3D"]
+process_mode = 1
+script = ExtResource("1_2xasv")
+wasm_module = ExtResource("2_gy2fr")
+chunk_size_x = 2
+chunk_size_y = 2
+chunk_size_z = 2
+
+[node name="Chunks" type="Node3D" parent="."]
+
+[node name="Timer" type="Timer" parent="."]
+autostart = true
+
+[node name="Pause" parent="." instance=ExtResource("2_vvn75")]
+
+[node name="Camera" type="Camera3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 5)
+current = true
+script = ExtResource("1_35s18")
+
+[node name="Environment" type="WorldEnvironment" parent="."]
+environment = SubResource("Environment_ju6cr")
+
+[node name="Light" type="DirectionalLight3D" parent="."]
+transform = Transform3D(-0.866025, -0.433013, 0.25, 0, 0.5, 0.866025, -0.5, 0.75, -0.433013, 0, 0, 0)
+shadow_enabled = true
+
+[connection signal="timeout" from="Timer" to="." method="_tick"]

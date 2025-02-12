@@ -1,0 +1,18 @@
+[gd_scene load_steps=4 format=3 uid="uid://d3t0towqsdts5"]
+
+[ext_resource type="Script" path="res://level/chunk/chunk.gd" id="1_e636o"]
+[ext_resource type="Texture2D" uid="uid://dc5fuexu5t10l" path="res://images/atlas.png" id="2_50rwr"]
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_kj0of"]
+transparency = 2
+alpha_scissor_threshold = 0.95
+alpha_antialiasing_mode = 0
+vertex_color_use_as_albedo = true
+albedo_texture = ExtResource("2_50rwr")
+texture_filter = 2
+
+[node name="Chunk" type="Node3D"]
+script = ExtResource("1_e636o")
+
+[node name="Blocks" type="MeshInstance3D" parent="."]
+material_override = SubResource("StandardMaterial3D_kj0of")
