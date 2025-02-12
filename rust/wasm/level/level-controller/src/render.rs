@@ -4,7 +4,7 @@ use std::ptr::dangling;
 use glam::f32::{Vec2, Vec3, Vec4};
 
 use level_state::{Block, LevelState, CHUNK_SIZE};
-use log_util::log;
+use util_wasm::log;
 
 struct Render {
     vertex: Vec<Vec3>,

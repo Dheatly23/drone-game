@@ -43,6 +43,7 @@ check-all:
   @ls ./level \
   | get name \
   | path basename \
+  | append "util-wasm" \
   | each { |v| \
     print $"Crate: ($v)"; \
     cargo check --target wasm32-unknown-unknown -p $v --config ./.cargo/config.toml {{extra_args}}; \
