@@ -33,47 +33,66 @@ extends Node3D
 	},
 )
 
-@onready var chunks := $Chunks
+var chunks := {}
 
 var buffer_data := PackedByteArray()
-var buffer_offset := 0
 
-func set_buffer(buf: PackedByteArray) -> void:
-	buffer_data = buf
-	buffer_offset = 0
+func init_chunks() -> void:
+	var old_size := Vector3i(chunk_size_x, chunk_size_y, chunk_size_z)
 
-func _ready() -> void:
-	wasm_instance.call_wasm(&"init", [chunk_size_x, chunk_size_y, chunk_size_z])
+	chunk_size_x = wasm_instance.call_wasm(&"get_chunk_x", [])[0]
+	chunk_size_y = wasm_instance.call_wasm(&"get_chunk_y", [])[0]
+	chunk_size_z = wasm_instance.call_wasm(&"get_chunk_z", [])[0]
+
+	for k: Vector3i in chunks.keys():
+		if k.min(old_size) != k:
+			chunks[k].queue_free()
+			chunks.erase(k)
 
 	var scene := preload("res://level/chunk/chunk.tscn")
+	var parent := $Chunks
 	for z in range(chunk_size_z):
 		for y in range(chunk_size_y):
 			for x in range(chunk_size_x):
+				var coord := Vector3i(x, y, z)
+				if coord in chunks:
+					continue
+
 				var node := scene.instantiate()
 				node.coord_x = x
 				node.coord_y = y
 				node.coord_z = z
 				node.name = "Chunk_%d_%d_%d" % [x, y, z]
-				chunks.add_child(node)
+				parent.add_child(node)
+				chunks[coord] = node
 
-func _tick() -> void:
-	for i in range(chunks.get_child_count()):
-		chunks.get_child(i).update_chunk(wasm_instance)
+	update_chunks()
+
+func update_chunks() -> void:
+	for k in chunks:
+		chunks[k].update_chunk(wasm_instance)
+
+func init_empty() -> void:
+	wasm_instance.call_wasm(&"init", [chunk_size_x, chunk_size_y, chunk_size_z])
+	init_chunks()
+
+func import_level(data: PackedByteArray) -> void:
+	buffer_data = data
+	wasm_instance.call_wasm(&"import", [])
+	init_chunks()
+
+func tick() -> void:
+	update_chunks()
 
 func __wasm_read_buffer(p: int, n: int) -> int:
-	if n + buffer_offset >= len(buffer_data):
-		var b := buffer_data.slice(buffer_offset)
-		wasm_instance.memory_write(p, b)
-		buffer_data = PackedByteArray()
-		buffer_offset = 0
-		return len(b)
-	else:
-		wasm_instance.memory_write(p, buffer_data.slice(buffer_offset, n + buffer_offset))
-		buffer_offset += n
-		return n
+	if len(buffer_data) > n :
+		wasm_instance.signal_error("Buffer is insufficient")
+		return 0
+	wasm_instance.memory_write(p, buffer_data)
+	return len(buffer_data)
 
 func __wasm_write_buffer(p: int, n: int) -> void:
-	buffer_data.append_array(wasm_instance.memory_read(p, n))
+	buffer_data = wasm_instance.memory_read(p, n)
 
 func __wasm_log(p: int, n: int) -> void:
 	print(wasm_instance.memory_read(p, n).get_string_from_utf8())

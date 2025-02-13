@@ -13,7 +13,7 @@ default: deploy
 build package:
   cargo build -p {{package}} --target wasm32-unknown-unknown --profile {{build_profile}} --config ./.cargo/config.toml {{extra_args}}
 
-build-all: (build "level-controller")
+build-all: (build "level-controller") (build "level-gen")
 
 deploy: build-all
   @let cmds = [[cmd closure]; \

@@ -48,6 +48,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "level-gen"
+version = "0.1.0"
+dependencies = [
+ "glam",
+ "level-state",
+ "rkyv",
+ "util-wasm",
+]
+
+[[package]]
 name = "level-state"
 version = "0.1.0"
 dependencies = [

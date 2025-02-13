@@ -8,7 +8,7 @@ extern "C" {
     fn _write_data(p: *const u8, n: u64);
 }
 
-const BUF_LEN: usize = 1024 * 1024;
+const BUF_LEN: usize = 64 * 1024 * 1024;
 #[repr(C, align(65536))]
 struct StaticBuffer([u8; BUF_LEN]);
 static mut BUFFER: StaticBuffer = StaticBuffer([0; BUF_LEN]);

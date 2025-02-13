@@ -1,0 +1,19 @@
+[gd_scene load_steps=5 format=3 uid="uid://rxwdcxd3jib"]
+
+[ext_resource type="Script" path="res://level/test/test_scene.gd" id="1_es4cw"]
+[ext_resource type="PackedScene" uid="uid://c7px4aj3vkc0j" path="res://level/level.tscn" id="1_xn46c"]
+[ext_resource type="PackedScene" uid="uid://lvyeachixp2" path="res://level/pause/pause.tscn" id="2_3m5vm"]
+[ext_resource type="WasmModule" uid="uid://c4qaie2mgfrd3" path="res://wasm/level_gen.wasm" id="2_bl67x"]
+
+[node name="Test Scene" type="Node3D"]
+script = ExtResource("1_es4cw")
+level_gen = ExtResource("2_bl67x")
+
+[node name="Level" parent="." instance=ExtResource("1_xn46c")]
+
+[node name="Pause" parent="." instance=ExtResource("2_3m5vm")]
+
+[node name="Timer" type="Timer" parent="."]
+autostart = true
+
+[connection signal="timeout" from="Timer" to="Level" method="tick"]
