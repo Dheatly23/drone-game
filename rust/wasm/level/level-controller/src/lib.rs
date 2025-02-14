@@ -2,12 +2,13 @@
 
 mod entity;
 mod render;
+mod update;
 
 use rkyv::api::high::{from_bytes, to_bytes_in};
 use rkyv::rancor::Panic;
 use rkyv::ser::writer::Buffer;
 
-use level_state::LevelState;
+use level_state::{Block, BlockEntityData, Drone, IronOre, LevelState, CHUNK_SIZE};
 use util_wasm::{read, write};
 
 use crate::entity::update_entity;
@@ -27,6 +28,49 @@ pub extern "C" fn import() {
     let level = unsafe { &mut *(&raw mut LEVEL) };
     *level = LevelState::new_empty();
     *level = from_bytes::<LevelState, Panic>(unsafe { read() }).unwrap();
+
+    // Validation
+    for c in level.chunks_mut() {
+        for b in c.blocks_mut() {
+            if matches!(b.get(), IronOre::BLOCK | Drone::BLOCK) {
+                b.set(Block::Unknown);
+            }
+        }
+    }
+
+    let mut v: Vec<_> = level
+        .block_entities()
+        .entries()
+        .map(|(&k, v)| {
+            (
+                (v.x, v.y, v.z),
+                k,
+                match v.data {
+                    BlockEntityData::IronOre(_) => IronOre::BLOCK,
+                    BlockEntityData::Drone(_) => Drone::BLOCK,
+                    _ => Block::Unknown,
+                },
+            )
+        })
+        .collect();
+    v.sort_unstable_by(|(a, _, _), (b, _, _)| a.cmp(b));
+
+    let (sx, sy, sz) = level.chunk_size();
+    let mut prev = None;
+    for (c @ (x, y, z), id, b) in v {
+        if x >= sx || y >= sy || z >= sz || prev.is_some_and(|p| c == p) {
+            level.block_entities_mut().remove(&id);
+            continue;
+        }
+
+        prev = Some(c);
+        level
+            .get_chunk_mut(x / CHUNK_SIZE, y / CHUNK_SIZE, z / CHUNK_SIZE)
+            .get_block_mut(x % CHUNK_SIZE, y % CHUNK_SIZE, z % CHUNK_SIZE)
+            .set(b);
+    }
+
+    for _ in level.block_entities_mut().pop_removed() {}
 }
 
 #[unsafe(no_mangle)]

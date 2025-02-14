@@ -1,4 +1,5 @@
 mod block;
+mod drone;
 mod entity;
 
 use std::iter::repeat_with;
@@ -12,6 +13,7 @@ use rkyv::with::{ArchiveWith, DeserializeWith, SerializeWith};
 use rkyv::{Archive, Deserialize, Place, Serialize};
 
 pub use block::*;
+pub use drone::*;
 pub use entity::*;
 
 #[derive(Debug, Archive, Serialize, Deserialize)]

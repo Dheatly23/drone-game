@@ -54,7 +54,7 @@ impl ArchivedBlockWrapper {
 }
 
 macro_rules! block_def {
-    ($($i:ident = ($e:literal, $s:literal)),* $(,)?) => {
+    ($($i:ident = ($e:literal, $full:literal, $solid:literal)),* $(,)?) => {
         #[derive(Debug, Default, Clone, Copy, Eq, PartialEq, Hash)]
         #[repr(u16)]
         pub enum Block {
@@ -77,7 +77,15 @@ macro_rules! block_def {
                 match self {
                     Self::Air => false,
                     Self::Unknown => true,
-                    $(Self::$i => $s,)*
+                    $(Self::$i => $full,)*
+                }
+            }
+
+            pub const fn is_solid(&self) -> bool {
+                match self {
+                    Self::Air => false,
+                    Self::Unknown => true,
+                    $(Self::$i => $solid,)*
                 }
             }
         }
@@ -85,9 +93,10 @@ macro_rules! block_def {
 }
 
 block_def! {
-    Dirt = (1, true),
-    Grass = (2, true),
-    IronOre = (256, false),
+    Dirt = (1, true, true),
+    Grass = (2, true, true),
+    IronOre = (0x0100, false, true),
+    Drone = (0x8000, false, true),
 }
 
 impl From<u16> for Block {

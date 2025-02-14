@@ -1,5 +1,6 @@
 use foldhash::fast::FixedState;
 use hashbrown::hash_map::{Entry, HashMap};
+use rkyv::with::AsBox;
 use rkyv::{Archive, Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -8,6 +9,26 @@ use crate::{Block, LevelState, CHUNK_SIZE};
 #[derive(Debug, Default, Archive, Serialize, Deserialize)]
 pub struct BlockEntities {
     data: HashMap<Uuid, Option<BlockEntity>, FixedState>,
+}
+
+fn filter_clone((&k, v): (&Uuid, &Option<BlockEntity>)) -> Option<(Uuid, Option<BlockEntity>)> {
+    let BlockEntity {
+        x, y, z, ref data, ..
+    } = *v.as_ref()?;
+    Some((k, Some(BlockEntity::new(x, y, z, data.clone()))))
+}
+
+impl Clone for BlockEntities {
+    fn clone(&self) -> Self {
+        Self {
+            data: self.data.iter().filter_map(filter_clone).collect(),
+        }
+    }
+
+    fn clone_from(&mut self, src: &Self) {
+        self.data.clear();
+        self.data.extend(src.data.iter().filter_map(filter_clone));
+    }
 }
 
 impl BlockEntities {
@@ -55,16 +76,14 @@ impl BlockEntities {
 
     #[inline(always)]
     pub fn entries(&self) -> impl Iterator<Item = (&'_ Uuid, &'_ BlockEntity)> {
-        self.data
-            .iter()
-            .filter_map(|(k, v)| v.as_ref().map(|v| (k, v)))
+        self.data.iter().filter_map(|(k, v)| Some((k, v.as_ref()?)))
     }
 
     #[inline(always)]
     pub fn entries_mut(&mut self) -> impl Iterator<Item = (&'_ Uuid, &'_ mut BlockEntity)> {
         self.data
             .iter_mut()
-            .filter_map(|(k, v)| v.as_mut().map(|v| (k, v)))
+            .filter_map(|(k, v)| Some((k, v.as_mut()?)))
     }
 
     #[inline(always)]
@@ -114,7 +133,7 @@ impl BlockEntity {
         self.dirty = true;
     }
 
-    fn place(self, level: &mut LevelState, block: Block) -> Uuid {
+    pub(crate) fn place(self, level: &mut LevelState, block: Block) -> Uuid {
         let Self { x, y, z, .. } = self;
         level
             .get_chunk_mut(x / CHUNK_SIZE, y / CHUNK_SIZE, z / CHUNK_SIZE)
@@ -124,12 +143,14 @@ impl BlockEntity {
     }
 }
 
-#[derive(Debug, Archive, Serialize, Deserialize)]
+#[derive(Debug, Clone, Archive, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum BlockEntityData {
     IronOre(IronOre),
+    Drone(#[rkyv(with = AsBox)] crate::drone::Drone),
 }
 
-#[derive(Debug, Default, Archive, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, Copy, Archive, Serialize, Deserialize)]
 #[non_exhaustive]
 pub struct IronOre {
     pub quantity: u64,

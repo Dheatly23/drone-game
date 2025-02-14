@@ -36,6 +36,7 @@ pub fn update_entity(level: &mut LevelState) {
                     _entity_iron_ore(a0, a1, a2, a3, e.x as _, e.y as _, e.z as _, v.quantity)
                 }
             }
+            _ => continue,
         }
     }
 }
