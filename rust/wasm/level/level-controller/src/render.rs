@@ -148,7 +148,7 @@ pub fn render_chunk(level: &mut LevelState, x: usize, y: usize, z: usize) -> *co
                         None => None,
                     },
                 ]
-                .map(|v| !v.is_some_and(|b| b.get().is_solid())),
+                .map(|v| !v.is_some_and(|b| b.get().is_full_block())),
             ),
         }
     };

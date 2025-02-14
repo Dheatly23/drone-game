@@ -1,5 +1,6 @@
 #![allow(clippy::deref_addrof)]
 
+mod entity;
 mod render;
 
 use rkyv::api::high::{from_bytes, to_bytes_in};
@@ -9,6 +10,7 @@ use rkyv::ser::writer::Buffer;
 use level_state::LevelState;
 use util_wasm::{read, write};
 
+use crate::entity::update_entity;
 use crate::render::{render_chunk, ExportRender};
 
 static mut LEVEL: LevelState = LevelState::new_empty();
@@ -56,4 +58,9 @@ pub extern "C" fn get_chunk_z() -> u32 {
 #[unsafe(no_mangle)]
 pub extern "C" fn get_chunk(x: u32, y: u32, z: u32) -> *const ExportRender {
     render_chunk(unsafe { &mut *(&raw mut LEVEL) }, x as _, y as _, z as _)
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn entity_update() {
+    update_entity(unsafe { &mut *(&raw mut LEVEL) });
 }

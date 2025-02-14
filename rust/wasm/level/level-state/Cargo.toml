@@ -7,4 +7,25 @@ license.workspace = true
 publish.workspace = true
 
 [dependencies]
-rkyv.workspace = true
+foldhash.workspace = true
+hashbrown.workspace = true
+
+[dependencies.rkyv]
+workspace = true
+features = [
+  "hashbrown-0_15",
+  "uuid-1",
+]
+
+[dependencies.uuid]
+workspace = true
+features = [
+  "rng-getrandom",
+  "v4",
+]
+
+[dependencies.util-wasm]
+workspace = true
+features = [
+  "getrandom",
+]

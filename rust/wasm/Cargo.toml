@@ -12,18 +12,19 @@ license = "Apache-2.0"
 publish = false
 
 [workspace.dependencies]
+foldhash = "^0.1"
+getrandom = "^0.3"
 glam = "^0.29"
+hashbrown = "^0.15"
+uuid = "^1"
 
 level-state.path = "level/level-state"
 util-wasm.path = "util"
 
 [workspace.dependencies.rkyv]
 version = "0.8"
-default-features = false
 features = [
   "aligned",
-  "alloc",
-  "bytecheck",
   "little_endian",
   "pointer_width_32",
 ]

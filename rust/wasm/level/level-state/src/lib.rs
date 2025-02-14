@@ -1,13 +1,18 @@
+mod block;
+mod entity;
+
 use std::iter::repeat_with;
 
 use rkyv::boxed::ArchivedBox;
 use rkyv::munge::munge;
 use rkyv::rancor::Fallible;
-use rkyv::rend::u16_le;
 use rkyv::seal::Seal;
 use rkyv::vec::ArchivedVec;
 use rkyv::with::{ArchiveWith, DeserializeWith, SerializeWith};
 use rkyv::{Archive, Deserialize, Place, Serialize};
+
+pub use block::*;
+pub use entity::*;
 
 #[derive(Debug, Archive, Serialize, Deserialize)]
 pub struct LevelState {
@@ -15,6 +20,8 @@ pub struct LevelState {
     chunk_x: usize,
     chunk_y: usize,
     chunk_z: usize,
+
+    entities: BlockEntities,
 }
 
 impl Default for LevelState {
@@ -30,6 +37,8 @@ impl LevelState {
             chunk_x: 0,
             chunk_y: 0,
             chunk_z: 0,
+
+            entities: BlockEntities::new(),
         }
     }
 
@@ -45,6 +54,8 @@ impl LevelState {
             chunk_x: x,
             chunk_y: y,
             chunk_z: z,
+
+            ..Self::new_empty()
         }
     }
 
@@ -83,6 +94,16 @@ impl LevelState {
     pub fn get_chunk_mut(&mut self, x: usize, y: usize, z: usize) -> &mut Chunk {
         let i = self.get_index(x, y, z).unwrap();
         &mut self.chunks[i]
+    }
+
+    #[inline(always)]
+    pub fn block_entities(&self) -> &BlockEntities {
+        &self.entities
+    }
+
+    #[inline(always)]
+    pub fn block_entities_mut(&mut self) -> &mut BlockEntities {
+        &mut self.entities
     }
 }
 
@@ -223,108 +244,6 @@ impl ArchivedChunk {
     ) -> &mut ArchivedBlockWrapper {
         munge!(let Self { blocks, .. } = this);
         &mut ArchivedBox::get_seal(blocks).unseal()[Chunk::get_index(x, y, z).unwrap()]
-    }
-}
-
-#[derive(Debug, Eq, PartialEq, Hash, Archive, Serialize, Deserialize)]
-#[repr(transparent)]
-pub struct BlockWrapper(u16);
-
-unsafe impl rkyv::traits::NoUndef for ArchivedBlockWrapper {}
-
-impl Default for BlockWrapper {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl<'a> From<&'a BlockWrapper> for Block {
-    #[inline(always)]
-    fn from(v: &'a BlockWrapper) -> Self {
-        v.get()
-    }
-}
-
-impl<'a> From<&'a ArchivedBlockWrapper> for Block {
-    #[inline(always)]
-    fn from(v: &'a ArchivedBlockWrapper) -> Self {
-        v.get()
-    }
-}
-
-impl BlockWrapper {
-    pub const fn new() -> Self {
-        Self(0)
-    }
-
-    #[inline(always)]
-    pub const fn get(&self) -> Block {
-        Block::from_u16(self.0)
-    }
-
-    #[inline(always)]
-    pub const fn set(&mut self, value: Block) {
-        self.0 = value as u16;
-    }
-}
-
-impl ArchivedBlockWrapper {
-    pub const fn get(&self) -> Block {
-        Block::from_u16(self.0.to_native())
-    }
-
-    pub const fn set(&mut self, value: Block) {
-        self.0 = u16_le::from_native(value as u16);
-    }
-}
-
-macro_rules! block_def {
-    ($($i:ident = ($e:literal, $s:literal)),* $(,)?) => {
-        #[derive(Debug, Default, Clone, Copy, Eq, PartialEq, Hash)]
-        #[repr(u16)]
-        pub enum Block {
-            #[default]
-            Air = 0,
-            $($i = $e,)*
-            Unknown = u16::MAX,
-        }
-
-        impl Block {
-            const fn from_u16(v: u16) -> Self {
-                match v {
-                    0 => Self::Air,
-                    $($e => Self::$i,)*
-                    _ => Self::Unknown,
-                }
-            }
-
-            pub const fn is_solid(&self) -> bool {
-                match self {
-                    Self::Air => false,
-                    Self::Unknown => true,
-                    $(Self::$i => $s,)*
-                }
-            }
-        }
-    };
-}
-
-block_def! {
-    Dirt = (1, true),
-    Grass = (2, true),
-}
-
-impl From<u16> for Block {
-    #[inline(always)]
-    fn from(v: u16) -> Self {
-        Self::from_u16(v)
-    }
-}
-
-impl From<Block> for u16 {
-    #[inline(always)]
-    fn from(v: Block) -> u16 {
-        v as u16
     }
 }
 

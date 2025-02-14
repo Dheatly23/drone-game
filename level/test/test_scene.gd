@@ -6,6 +6,7 @@ extends Node3D
 
 var wasm_instance: WasmInstance
 var buffer_data := PackedByteArray()
+var crypto := Crypto.new()
 
 func _ready() -> void:
 	var level := $Level
@@ -17,6 +18,11 @@ func _ready() -> void:
 				level_gen,
 				{
 					"host": {
+						"random": {
+							params = [WasmHelper.TYPE_I32, WasmHelper.TYPE_I32],
+							results = [],
+							callable = __wasm_random,
+						},
 						"log": {
 							params = [WasmHelper.TYPE_I32, WasmHelper.TYPE_I32],
 							results = [],
@@ -56,6 +62,9 @@ func _ready() -> void:
 func _exit_tree() -> void:
 	if thread.is_started():
 		thread.wait_to_finish()
+
+func __wasm_random(p: int, n: int) -> void:
+	wasm_instance.memory_write(p, crypto.generate_random_bytes(n))
 
 func __wasm_read_buffer(p: int, n: int) -> int:
 	if len(buffer_data) > n :

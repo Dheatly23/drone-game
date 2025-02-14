@@ -1,8 +1,9 @@
-[gd_scene load_steps=7 format=3 uid="uid://c7px4aj3vkc0j"]
+[gd_scene load_steps=8 format=3 uid="uid://c7px4aj3vkc0j"]
 
 [ext_resource type="Script" path="res://level/level.gd" id="1_2xasv"]
 [ext_resource type="Script" path="res://level/camera.gd" id="1_35s18"]
 [ext_resource type="WasmModule" uid="uid://b8hsrpjswupdr" path="res://wasm/level_controller.wasm" id="2_gy2fr"]
+[ext_resource type="Script" path="res://level/multimesh_controller.gd" id="3_pdm1g"]
 
 [sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_ysven"]
 sky_horizon_color = Color(0.64625, 0.65575, 0.67075, 1)
@@ -24,8 +25,12 @@ wasm_module = ExtResource("2_gy2fr")
 
 [node name="Chunks" type="Node3D" parent="."]
 
+[node name="MultiMesh Controller" type="Node3D" parent="."]
+visible = false
+script = ExtResource("3_pdm1g")
+
 [node name="Camera" type="Camera3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 5)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5, 5, 5)
 current = true
 script = ExtResource("1_35s18")
 

@@ -6,7 +6,11 @@ authors.workspace = true
 license.workspace = true
 publish.workspace = true
 
-[dependencies]
+[dependencies.getrandom]
+workspace = true
+optional = true
 
 [features]
 buffer = []
+buffer-large = []
+getrandom = ["dep:getrandom"]

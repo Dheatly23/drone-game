@@ -10,6 +10,11 @@ extends Node3D
 	wasm_module,
 	{
 		"host": {
+			"random": {
+				params = [WasmHelper.TYPE_I32, WasmHelper.TYPE_I32],
+				results = [],
+				callable = __wasm_random,
+			},
 			"log": {
 				params = [WasmHelper.TYPE_I32, WasmHelper.TYPE_I32],
 				results = [],
@@ -25,6 +30,30 @@ extends Node3D
 				results = [],
 				callable = __wasm_write_buffer,
 			},
+			"entity_removed": {
+				params = [
+					WasmHelper.TYPE_I32,
+					WasmHelper.TYPE_I32,
+					WasmHelper.TYPE_I32,
+					WasmHelper.TYPE_I32,
+				],
+				results = [],
+				callable = __wasm_entity_removed,
+			},
+			"entity_iron_ore": {
+				params = [
+					WasmHelper.TYPE_I32,
+					WasmHelper.TYPE_I32,
+					WasmHelper.TYPE_I32,
+					WasmHelper.TYPE_I32,
+					WasmHelper.TYPE_I32,
+					WasmHelper.TYPE_I32,
+					WasmHelper.TYPE_I32,
+					WasmHelper.TYPE_I64,
+				],
+				results = [],
+				callable = __wasm_entity_iron_ore,
+			},
 		},
 	},
 	{
@@ -34,8 +63,10 @@ extends Node3D
 )
 
 var chunks := {}
+var block_entities := {}
 
 var buffer_data := PackedByteArray()
+var crypto := Crypto.new()
 
 func init_chunks() -> void:
 	var old_size := Vector3i(chunk_size_x, chunk_size_y, chunk_size_z)
@@ -48,9 +79,12 @@ func init_chunks() -> void:
 		if k.min(old_size) != k:
 			chunks[k].queue_free()
 			chunks.erase(k)
+		else:
+			chunks[k].clear_block_entities()
 
 	var scene := preload("res://level/chunk/chunk.tscn")
 	var parent := $Chunks
+	var mm_cont := $"MultiMesh Controller"
 	for z in range(chunk_size_z):
 		for y in range(chunk_size_y):
 			for x in range(chunk_size_x):
@@ -63,14 +97,20 @@ func init_chunks() -> void:
 				node.coord_y = y
 				node.coord_z = z
 				node.name = "Chunk_%d_%d_%d" % [x, y, z]
+				node.inst = wasm_instance
+				node.mm_cont = mm_cont
 				parent.add_child(node)
 				chunks[coord] = node
+
+	block_entities.clear()
 
 	update_chunks()
 
 func update_chunks() -> void:
+	wasm_instance.call_wasm(&"entity_update", [])
+
 	for k in chunks:
-		chunks[k].update_chunk(wasm_instance)
+		chunks[k].update_chunk()
 
 func init_empty() -> void:
 	wasm_instance.call_wasm(&"init", [chunk_size_x, chunk_size_y, chunk_size_z])
@@ -84,6 +124,9 @@ func import_level(data: PackedByteArray) -> void:
 func tick() -> void:
 	update_chunks()
 
+func __wasm_random(p: int, n: int) -> void:
+	wasm_instance.memory_write(p, crypto.generate_random_bytes(n))
+
 func __wasm_read_buffer(p: int, n: int) -> int:
 	if len(buffer_data) > n :
 		wasm_instance.signal_error("Buffer is insufficient")
@@ -96,3 +139,28 @@ func __wasm_write_buffer(p: int, n: int) -> void:
 
 func __wasm_log(p: int, n: int) -> void:
 	print(wasm_instance.memory_read(p, n).get_string_from_utf8())
+
+func __wasm_entity_removed(a0: int, a1: int, a2: int, a3: int) -> void:
+	var uuid := Vector4i(a0, a1, a2, a3)
+
+	var data = block_entities[uuid]
+	block_entities.erase(uuid)
+
+	if data != null:
+		chunks[data["coord"] / LevelChunk.CHUNK_SIZE].unregister_block_entity(uuid)
+
+func __wasm_entity_iron_ore(a0: int, a1: int, a2: int, a3: int, x: int, y: int, z: int, qty: int) -> void:
+	var uuid := Vector4i(a0, a1, a2, a3)
+	var data := {
+		type = "iron_ore",
+		coord = Vector3i(x, y, z),
+		quantity = qty,
+	}
+	data.make_read_only()
+
+	var old = block_entities.get(uuid)
+	block_entities[uuid] = data
+
+	if old != null:
+		chunks[old["coord"] / LevelChunk.CHUNK_SIZE].unregister_block_entity(uuid)
+	chunks[data["coord"] / LevelChunk.CHUNK_SIZE].register_block_entity(uuid, data)

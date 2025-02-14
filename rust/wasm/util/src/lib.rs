@@ -2,6 +2,8 @@
 
 #[cfg(feature = "buffer")]
 mod buffer;
+#[cfg(all(feature = "getrandom", getrandom_backend = "custom"))]
+mod getrandom;
 mod log;
 
 #[cfg(feature = "buffer")]
