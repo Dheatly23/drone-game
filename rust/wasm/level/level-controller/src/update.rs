@@ -131,6 +131,9 @@ fn drone_command(level: &mut LevelState) {
 
     // Clear all drone commands
     for (_, v) in level.block_entities_mut().entries_mut() {
+        // For now mark all drones as dirty
+        v.mark_dirty();
+
         let BlockEntityData::Drone(v) = &mut v.data else {
             continue;
         };
@@ -184,7 +187,9 @@ fn tick_block(
             };
 
             if tb.is_full_block() {
-                level.chunks_mut()[c].blocks_mut()[i].set(Block::Dirt);
+                let c = &mut level.chunks_mut()[c];
+                c.blocks_mut()[i].set(Block::Dirt);
+                c.mark_dirty();
             }
         }
         Block::Dirt => {
@@ -206,7 +211,9 @@ fn tick_block(
                     Block::Grass,
                 )
             {
-                level.chunks_mut()[c].blocks_mut()[i].set(Block::Grass);
+                let c = &mut level.chunks_mut()[c];
+                c.blocks_mut()[i].set(Block::Grass);
+                c.mark_dirty();
             }
         }
         _ => (),
