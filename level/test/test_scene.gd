@@ -71,7 +71,9 @@ func __wasm_read_buffer(p: int, n: int) -> int:
 		wasm_instance.signal_error("Buffer is insufficient")
 		return 0
 	wasm_instance.memory_write(p, buffer_data)
-	return len(buffer_data)
+	var ret := len(buffer_data)
+	buffer_data = PackedByteArray()
+	return ret
 
 func __wasm_write_buffer(p: int, n: int) -> void:
 	buffer_data = wasm_instance.memory_read(p, n)
