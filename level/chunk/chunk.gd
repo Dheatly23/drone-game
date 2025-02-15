@@ -98,6 +98,8 @@ func __add_block_entity(i: int, ty: String, mesh: Mesh, mat: Material, coord: Ve
 		a = []
 		mm_nodes[ty] = a
 
+	# It's an index duh
+	@warning_ignore("integer_division")
 	var j: int = i / MultiMeshController.INSTANCE_COUNT
 	var node: MultiMeshInstance3D = a[j] if j < len(a) else null
 	if node == null or node.multimesh.visible_instance_count == MultiMeshController.INSTANCE_COUNT or node.multimesh.visible_instance_count == -1:
