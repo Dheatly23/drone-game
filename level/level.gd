@@ -1,5 +1,8 @@
 extends Node3D
 
+signal tick_finished(level_data: PackedByteArray)
+signal command_requested()
+
 @export var wasm_module: WasmModule = null
 @export_group("Chunk Size")
 @export_range(1, 64) var chunk_size_x := 1
@@ -135,8 +138,23 @@ func import_level(data: PackedByteArray) -> void:
 	init_chunks()
 
 func tick() -> void:
+	var start := Time.get_ticks_usec()
+
 	wasm_instance.call_wasm(&"tick", [])
-	update_chunks()
+
+	buffer_data = PackedByteArray()
+	wasm_instance.call_wasm(&"export_censored", [])
+	update_chunks.call_deferred()
+	tick_finished.emit(buffer_data)
+	command_requested.emit()
+
+	var end := Time.get_ticks_usec()
+	print("Tick: %.3f" % ((end - start) / 1000.0))
+
+func __command_set(data: PackedByteArray, uuid: Vector4i) -> void:
+	buffer_data = data
+	wasm_instance.call_wasm(&"set_command", [uuid.x, uuid.y, uuid.z, uuid.w])
+	buffer_data = PackedByteArray()
 
 func __wasm_random(p: int, n: int) -> void:
 	wasm_instance.memory_write(p, crypto.generate_random_bytes(n))
@@ -198,6 +216,7 @@ func __wasm_entity_drone(a0: int, a1: int, a2: int, a3: int, x: int, y: int, z: 
 			a2 & 0xffff_ffff,
 			a3 & 0xffff_ffff,
 		]
+		tick_finished.connect(node.tick)
 		$Drones.add_child(node)
 	else:
 		node = old["node"]

@@ -92,6 +92,18 @@ impl BlockEntities {
             .iter()
             .filter_map(|(k, v)| if v.is_some() { Some(k) } else { None })
     }
+
+    pub fn clone_from_filtered(
+        &mut self,
+        src: &Self,
+        mut f: impl FnMut(&Uuid, &BlockEntity) -> Option<BlockEntity>,
+    ) {
+        self.data.clear();
+        self.data.extend(
+            src.entries()
+                .filter_map(move |(k, v)| Some((*k, Some(f(k, v)?)))),
+        );
+    }
 }
 
 #[derive(Debug, Archive, Serialize, Deserialize)]

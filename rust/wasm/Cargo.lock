@@ -117,6 +117,7 @@ dependencies = [
  "rand_xoshiro",
  "rkyv",
  "util-wasm",
+ "uuid",
 ]
 
 [[package]]

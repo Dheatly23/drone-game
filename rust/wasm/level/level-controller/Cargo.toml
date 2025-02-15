@@ -14,6 +14,7 @@ glam.workspace = true
 rand.workspace = true
 rand_xoshiro.workspace = true
 rkyv.workspace = true
+uuid.workspace = true
 
 level-state.workspace = true
 

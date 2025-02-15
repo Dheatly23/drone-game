@@ -1,6 +1,7 @@
 #![allow(clippy::deref_addrof)]
 
 mod entity;
+mod process_export;
 mod render;
 mod update;
 
@@ -9,28 +10,38 @@ use std::mem::replace;
 use rkyv::api::high::{from_bytes, to_bytes_in};
 use rkyv::rancor::Panic;
 use rkyv::ser::writer::Buffer;
+use uuid::Uuid;
 
-use level_state::{Block, BlockEntityData, IronOre, LevelState, CHUNK_SIZE};
+use level_state::{Block, BlockEntity, BlockEntityData, IronOre, LevelState, CHUNK_SIZE};
 use util_wasm::{read, write};
 
 use crate::entity::update_entity;
+use crate::process_export::process_to_export;
 use crate::render::{render_chunk, ExportRender};
 use crate::update::update;
 
 static mut LEVEL: LevelState = LevelState::new_empty();
+static mut LEVEL_PROCESSED: LevelState = LevelState::new_empty();
 
 #[unsafe(no_mangle)]
 pub extern "C" fn init(x: u32, y: u32, z: u32) {
-    let level = unsafe { &mut *(&raw mut LEVEL) };
+    let (level, level_processed) =
+        unsafe { (&mut *(&raw mut LEVEL), &mut *(&raw mut LEVEL_PROCESSED)) };
     *level = LevelState::new_empty();
+    *level_processed = LevelState::new_empty();
     *level = LevelState::new(x as _, y as _, z as _);
+    *level_processed = LevelState::new(x as _, y as _, z as _);
 }
 
 #[unsafe(no_mangle)]
 pub extern "C" fn import() {
-    let level = unsafe { &mut *(&raw mut LEVEL) };
+    let (level, level_processed) =
+        unsafe { (&mut *(&raw mut LEVEL), &mut *(&raw mut LEVEL_PROCESSED)) };
     *level = LevelState::new_empty();
+    *level_processed = LevelState::new_empty();
     *level = from_bytes::<LevelState, Panic>(unsafe { read() }).unwrap();
+    let (sx, sy, sz) = level.chunk_size();
+    *level_processed = LevelState::new(sx, sy, sz);
 
     // Validation
     for c in level.chunks_mut() {
@@ -58,7 +69,6 @@ pub extern "C" fn import() {
         .collect();
     v.sort_unstable_by(|(a, _, _), (b, _, _)| a.cmp(b));
 
-    let (sx, sy, sz) = level.chunk_size();
     let mut prev = None;
     for (c @ (x, y, z), id, b) in v {
         if x >= sx || y >= sy || z >= sz || replace(&mut prev, Some(c)).is_some_and(|p| c == p) {
@@ -111,6 +121,39 @@ pub extern "C" fn get_chunk(x: u32, y: u32, z: u32) -> *const ExportRender {
 #[unsafe(no_mangle)]
 pub extern "C" fn entity_update() {
     update_entity(unsafe { &mut *(&raw mut LEVEL) });
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn export_censored() {
+    let (level, level_processed) =
+        unsafe { (&*(&raw const LEVEL), &mut *(&raw mut LEVEL_PROCESSED)) };
+    process_to_export(level_processed, level);
+    unsafe {
+        write(|buf| {
+            to_bytes_in::<_, Panic>(level_processed, Buffer::from(buf))
+                .unwrap()
+                .len()
+        })
+    }
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn set_command(a0: u32, a1: u32, a2: u32, a3: u32) {
+    let id = Uuid::from_u128(
+        (a0 as u128) | (a1 as u128) << 32 | (a2 as u128) << 64 | (a3 as u128) << 96,
+    );
+
+    unsafe {
+        let level = &mut *(&raw mut LEVEL);
+        let Some(BlockEntity {
+            data: BlockEntityData::Drone(d),
+            ..
+        }) = level.block_entities_mut().get_mut(&id)
+        else {
+            return;
+        };
+        d.command = from_bytes::<_, Panic>(read()).unwrap();
+    }
 }
 
 #[unsafe(no_mangle)]
