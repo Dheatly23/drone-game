@@ -102,6 +102,7 @@ func __add_block_entity(i: int, ty: String, mesh: Mesh, mat: Material, coord: Ve
 	var node: MultiMeshInstance3D = a[j] if j < len(a) else null
 	if node == null or node.multimesh.visible_instance_count == MultiMeshController.INSTANCE_COUNT or node.multimesh.visible_instance_count == -1:
 		node = mm_cont.get_multimesh_node(mesh, mat)
+		node.name = "%s_%d" % [ty, len(a)]
 		add_child(node)
 		a.append(node)
 
