@@ -67,7 +67,7 @@ func __wasm_random(p: int, n: int) -> void:
 	wasm_instance.memory_write(p, crypto.generate_random_bytes(n))
 
 func __wasm_read_buffer(p: int, n: int) -> int:
-	if len(buffer_data) > n :
+	if len(buffer_data) > n:
 		wasm_instance.signal_error("Buffer is insufficient")
 		return 0
 	wasm_instance.memory_write(p, buffer_data)
