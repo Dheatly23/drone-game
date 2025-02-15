@@ -44,7 +44,6 @@ pub extern "C" fn import() {
     *level_processed = LevelState::new(sx, sy, sz);
 
     // Validation
-    /*
     for c in level.chunks_mut() {
         for b in c.blocks_mut() {
             if matches!(b.get(), IronOre::BLOCK) {
@@ -52,7 +51,6 @@ pub extern "C" fn import() {
             }
         }
     }
-    */
 
     let mut v: Vec<_> = level
         .block_entities()
@@ -79,14 +77,12 @@ pub extern "C" fn import() {
         }
         log(format_args!("{x} {y} {z}"));
 
-        /*
         if let Some(b) = b {
             level
                 .get_chunk_mut(x / CHUNK_SIZE, y / CHUNK_SIZE, z / CHUNK_SIZE)
                 .get_block_mut(x % CHUNK_SIZE, y % CHUNK_SIZE, z % CHUNK_SIZE)
                 .set(b);
         }
-        */
     }
 
     for _ in level.block_entities_mut().pop_removed() {}
