@@ -12,7 +12,7 @@ const UPDATE_RATE: usize = 32;
 
 pub fn update(level: &mut LevelState) {
     drone_command(level);
-    random_tick(level);
+    //random_tick(level);
 }
 
 fn drone_command(level: &mut LevelState) {

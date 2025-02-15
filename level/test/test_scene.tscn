@@ -8,13 +8,10 @@
 [node name="Test Scene" type="Node3D"]
 script = ExtResource("1_es4cw")
 level_gen = ExtResource("2_bl67x")
+tick_delay = 0.05
 
 [node name="Level" parent="." instance=ExtResource("1_xn46c")]
 
 [node name="Pause" parent="." instance=ExtResource("2_3m5vm")]
 
-[node name="Timer" type="Timer" parent="."]
-wait_time = 0.05
-autostart = true
-
-[connection signal="timeout" from="Timer" to="Level" method="tick"]
+[connection signal="chunks_updated" from="Level" to="." method="__chunks_updated"]

@@ -1,7 +1,5 @@
 extends Node3D
 
-signal command_set(data: PackedByteArray)
-
 @export var uuid := Vector4i.ZERO
 
 var wasm_instance: WasmInstance
@@ -15,7 +13,10 @@ func tick(level_data: PackedByteArray) -> void:
 		buffer_data = level_data
 		wasm_instance.call_wasm(&"tick", [])
 
-		command_set.emit(buffer_data)
+func get_command() -> PackedByteArray:
+	var ret := buffer_data
+	buffer_data = PackedByteArray()
+	return ret
 
 func __wasm_read_buffer(p: int, n: int) -> int:
 	if len(buffer_data) > n:

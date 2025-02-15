@@ -1,67 +1,100 @@
 extends Node3D
 
 @export var level_gen: WasmModule
+@export_range(0.01, 1000.0, 0.01) var tick_delay := 1.0
 
-@onready var thread := Thread.new()
+var thread := Thread.new()
+var sema := Semaphore.new()
+var work_msg := "none"
+
+var time_acc := 0.0
+var ticking := false
 
 var wasm_instance: WasmInstance
 var buffer_data := PackedByteArray()
 var crypto := Crypto.new()
 
-func _ready() -> void:
-	var level := $Level
-
+func thread_fn(level) -> void:
 	if level_gen != null:
-		var fn := func ():
-			var start := Time.get_ticks_usec()
-			wasm_instance = WasmInstance.new().initialize(
-				level_gen,
-				{
-					"host": {
-						"random": {
-							params = [WasmHelper.TYPE_I32, WasmHelper.TYPE_I32],
-							results = [],
-							callable = __wasm_random,
-						},
-						"log": {
-							params = [WasmHelper.TYPE_I32, WasmHelper.TYPE_I32],
-							results = [],
-							callable = __wasm_log,
-						},
-						"read_data": {
-							params = [WasmHelper.TYPE_I32, WasmHelper.TYPE_I64],
-							results = [WasmHelper.TYPE_I64],
-							callable = __wasm_read_buffer,
-						},
-						"write_data": {
-							params = [WasmHelper.TYPE_I32, WasmHelper.TYPE_I64],
-							results = [],
-							callable = __wasm_write_buffer,
-						},
+		var start := Time.get_ticks_usec()
+		wasm_instance = WasmInstance.new().initialize(
+			level_gen,
+			{
+				"host": {
+					"random": {
+						params = [WasmHelper.TYPE_I32, WasmHelper.TYPE_I32],
+						results = [],
+						callable = __wasm_random,
+					},
+					"log": {
+						params = [WasmHelper.TYPE_I32, WasmHelper.TYPE_I32],
+						results = [],
+						callable = __wasm_log,
+					},
+					"read_data": {
+						params = [WasmHelper.TYPE_I32, WasmHelper.TYPE_I64],
+						results = [WasmHelper.TYPE_I64],
+						callable = __wasm_read_buffer,
+					},
+					"write_data": {
+						params = [WasmHelper.TYPE_I32, WasmHelper.TYPE_I64],
+						results = [],
+						callable = __wasm_write_buffer,
 					},
 				},
-				{
-					"epoch.enable": true,
-					"epoch.timeout": 30.0,
-				},
-			)
+			},
+			{
+				"epoch.enable": true,
+				"epoch.timeout": 30.0,
+			},
+		)
 
-			wasm_instance.call_wasm(&"generate", [])
+		wasm_instance.call_wasm(&"generate", [])
 
-			var end := Time.get_ticks_usec()
-			print("Done generating in %f seconds" % ((end - start) / 1e6))
+		var end := Time.get_ticks_usec()
+		print("Done generating in %f seconds" % ((end - start) / 1e6))
 
-			level.import_level.call_deferred(buffer_data)
-			buffer_data = PackedByteArray()
-			wasm_instance = null
+		level.import_level.call_deferred(buffer_data)
+		buffer_data = PackedByteArray()
+		wasm_instance = null
 
-		thread.start(fn)
+	else:
+		level.init_empty()
 
-	level.init_empty()
+	while true:
+		sema.wait()
+		match work_msg:
+			"tick":
+				level.tick()
+			"quit":
+				print("Done!")
+				return
+		work_msg = ""
+
+func _ready() -> void:
+	thread.start(thread_fn.bind($Level))
+
+func _process(delta: float) -> void:
+	time_acc += delta
+	if time_acc >= tick_delay and not ticking:
+		ticking = true
+		__send_msg("tick")
+		time_acc = 0.0
 
 func _exit_tree() -> void:
 	if thread.is_started():
+		__send_msg("quit")
 		thread.wait_to_finish()
+
+func __send_msg(msg: String) -> void:
+	while sema.try_wait():
+		pass
+	work_msg = msg
+	sema.post()
+	print("Send: %s" % msg)
+
+func __chunks_updated() -> void:
+	ticking = false
 
 func __wasm_random(p: int, n: int) -> void:
 	wasm_instance.memory_write(p, crypto.generate_random_bytes(n))

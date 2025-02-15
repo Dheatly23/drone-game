@@ -1,7 +1,6 @@
 extends Node3D
 
-signal tick_finished(level_data: PackedByteArray)
-signal command_requested()
+signal chunks_updated()
 
 @export var wasm_module: WasmModule = null
 @export_group("Chunk Size")
@@ -74,7 +73,7 @@ signal command_requested()
 	},
 	{
 		"epoch.enable": true,
-		"epoch.timeout": 1.0,
+		"epoch.timeout": 5.0,
 	},
 )
 
@@ -83,13 +82,16 @@ var block_entities := {}
 
 var buffer_data := PackedByteArray()
 var crypto := Crypto.new()
+var mutex := Mutex.new()
 
 func init_chunks() -> void:
 	var old_size := Vector3i(chunk_size_x, chunk_size_y, chunk_size_z)
 
+	mutex.lock()
 	chunk_size_x = wasm_instance.call_wasm(&"get_chunk_x", [])[0]
 	chunk_size_y = wasm_instance.call_wasm(&"get_chunk_y", [])[0]
 	chunk_size_z = wasm_instance.call_wasm(&"get_chunk_z", [])[0]
+	mutex.unlock()
 
 	for k: Vector3i in chunks.keys():
 		if k.min(old_size) != k:
@@ -123,38 +125,57 @@ func init_chunks() -> void:
 	update_chunks()
 
 func update_chunks() -> void:
+	mutex.lock()
 	wasm_instance.call_wasm(&"entity_update", [])
 
 	for k in chunks:
 		chunks[k].update_chunk()
 
+	mutex.unlock()
+	chunks_updated.emit()
+
 func init_empty() -> void:
+	mutex.lock()
 	wasm_instance.call_wasm(&"init", [chunk_size_x, chunk_size_y, chunk_size_z])
+	mutex.unlock()
 	init_chunks()
 
 func import_level(data: PackedByteArray) -> void:
+	mutex.lock()
 	buffer_data = data
 	wasm_instance.call_wasm(&"import", [])
+	mutex.unlock()
 	init_chunks()
 
 func tick() -> void:
 	var start := Time.get_ticks_usec()
 
+	mutex.lock()
 	wasm_instance.call_wasm(&"tick", [])
 
 	buffer_data = PackedByteArray()
 	wasm_instance.call_wasm(&"export_censored", [])
 	update_chunks.call_deferred()
-	tick_finished.emit(buffer_data)
-	command_requested.emit()
+
+	# Gather commands
+	var drones := []
+	for k in block_entities:
+		var v: Dictionary = block_entities[k]
+		if v["type"] != "drone":
+			continue
+		drones.push_back(v["node"])
+	for n in drones:
+		n.tick(buffer_data)
+	for n in drones:
+		var uuid: Vector4i = n.uuid
+		buffer_data = n.get_command()
+		if len(buffer_data) > 0:
+			wasm_instance.call_wasm(&"set_command", [uuid.x, uuid.y, uuid.z, uuid.w])
+	buffer_data = PackedByteArray()
+	mutex.unlock()
 
 	var end := Time.get_ticks_usec()
 	print("Tick: %.3f" % ((end - start) / 1000.0))
-
-func __command_set(data: PackedByteArray, uuid: Vector4i) -> void:
-	buffer_data = data
-	wasm_instance.call_wasm(&"set_command", [uuid.x, uuid.y, uuid.z, uuid.w])
-	buffer_data = PackedByteArray()
 
 func __wasm_random(p: int, n: int) -> void:
 	wasm_instance.memory_write(p, crypto.generate_random_bytes(n))
@@ -216,7 +237,6 @@ func __wasm_entity_drone(a0: int, a1: int, a2: int, a3: int, x: int, y: int, z: 
 			a2 & 0xffff_ffff,
 			a3 & 0xffff_ffff,
 		]
-		tick_finished.connect(node.tick)
 		$Drones.add_child(node)
 	else:
 		node = old["node"]

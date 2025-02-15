@@ -13,7 +13,7 @@ use rkyv::ser::writer::Buffer;
 use uuid::Uuid;
 
 use level_state::{Block, BlockEntity, BlockEntityData, IronOre, LevelState, CHUNK_SIZE};
-use util_wasm::{read, write};
+use util_wasm::{log, read, write};
 
 use crate::entity::update_entity;
 use crate::process_export::process_to_export;
@@ -44,6 +44,7 @@ pub extern "C" fn import() {
     *level_processed = LevelState::new(sx, sy, sz);
 
     // Validation
+    /*
     for c in level.chunks_mut() {
         for b in c.blocks_mut() {
             if matches!(b.get(), IronOre::BLOCK) {
@@ -51,6 +52,7 @@ pub extern "C" fn import() {
             }
         }
     }
+    */
 
     let mut v: Vec<_> = level
         .block_entities()
@@ -75,13 +77,16 @@ pub extern "C" fn import() {
             level.block_entities_mut().remove(&id);
             continue;
         }
+        log(format_args!("{x} {y} {z}"));
 
+        /*
         if let Some(b) = b {
             level
                 .get_chunk_mut(x / CHUNK_SIZE, y / CHUNK_SIZE, z / CHUNK_SIZE)
                 .get_block_mut(x % CHUNK_SIZE, y % CHUNK_SIZE, z % CHUNK_SIZE)
                 .set(b);
         }
+        */
     }
 
     for _ in level.block_entities_mut().pop_removed() {}
