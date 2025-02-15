@@ -67,7 +67,7 @@ func thread_fn(level) -> void:
 			"tick":
 				level.tick()
 			"quit":
-				print("Done!")
+				print("Worker thread done!")
 				return
 		work_msg = ""
 
@@ -91,7 +91,7 @@ func __send_msg(msg: String) -> void:
 		pass
 	work_msg = msg
 	sema.post()
-	print("Send: %s" % msg)
+	#print("Send: %s" % msg)
 
 func __chunks_updated() -> void:
 	ticking = false

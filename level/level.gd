@@ -175,7 +175,7 @@ func tick() -> void:
 	mutex.unlock()
 
 	var end := Time.get_ticks_usec()
-	print("Tick: %.3f" % ((end - start) / 1000.0))
+	#print("Tick: %.3f" % ((end - start) / 1000.0))
 
 func __wasm_random(p: int, n: int) -> void:
 	wasm_instance.memory_write(p, crypto.generate_random_bytes(n))
