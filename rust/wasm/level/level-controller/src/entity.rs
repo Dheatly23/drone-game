@@ -6,6 +6,8 @@ extern "C" {
     fn _entity_removed(a0: u32, a1: u32, a2: u32, a3: u32);
     #[link_name = "entity_iron_ore"]
     fn _entity_iron_ore(a0: u32, a1: u32, a2: u32, a3: u32, x: u32, y: u32, z: u32, qty: u64);
+    #[link_name = "entity_drone"]
+    fn _entity_drone(a0: u32, a1: u32, a2: u32, a3: u32, x: u32, y: u32, z: u32);
 }
 
 fn from_uuid(v: u128) -> [u32; 4] {
@@ -35,6 +37,10 @@ pub fn update_entity(level: &mut LevelState) {
                 unsafe {
                     _entity_iron_ore(a0, a1, a2, a3, e.x as _, e.y as _, e.z as _, v.quantity)
                 }
+            }
+            BlockEntityData::Drone(_) => {
+                let [a0, a1, a2, a3] = from_uuid(id.as_u128());
+                unsafe { _entity_drone(a0, a1, a2, a3, e.x as _, e.y as _, e.z as _) }
             }
             _ => continue,
         }

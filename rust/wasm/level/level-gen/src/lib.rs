@@ -2,7 +2,7 @@ use rkyv::api::high::to_bytes_in;
 use rkyv::rancor::Panic;
 use rkyv::ser::writer::Buffer;
 
-use level_state::{Block, IronOre, LevelState, CHUNK_SIZE};
+use level_state::{Block, BlockEntity, BlockEntityData, Drone, IronOre, LevelState, CHUNK_SIZE};
 use util_wasm::write;
 
 #[no_mangle]
@@ -17,11 +17,18 @@ pub extern "C" fn generate() {
 
     for z in 1..CHUNK_SIZE - 1 {
         for x in 1..CHUNK_SIZE - 1 {
-            let mut v = IronOre::default();
+            let mut v = IronOre::new();
             v.quantity = x as u64 * z as u64 * 1000;
             v.place(&mut level, x, 1, z);
         }
     }
+
+    level.block_entities_mut().add(BlockEntity::new(
+        0,
+        1,
+        0,
+        BlockEntityData::Drone(Drone::new()),
+    ));
 
     unsafe {
         write(move |buf| {

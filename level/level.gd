@@ -54,6 +54,19 @@ extends Node3D
 				results = [],
 				callable = __wasm_entity_iron_ore,
 			},
+			"entity_drone": {
+				params = [
+					WasmHelper.TYPE_I32,
+					WasmHelper.TYPE_I32,
+					WasmHelper.TYPE_I32,
+					WasmHelper.TYPE_I32,
+					WasmHelper.TYPE_I32,
+					WasmHelper.TYPE_I32,
+					WasmHelper.TYPE_I32,
+				],
+				results = [],
+				callable = __wasm_entity_drone,
+			},
 		},
 	},
 	{
@@ -122,6 +135,7 @@ func import_level(data: PackedByteArray) -> void:
 	init_chunks()
 
 func tick() -> void:
+	wasm_instance.call_wasm(&"tick", [])
 	update_chunks()
 
 func __wasm_random(p: int, n: int) -> void:
@@ -147,7 +161,10 @@ func __wasm_entity_removed(a0: int, a1: int, a2: int, a3: int) -> void:
 	block_entities.erase(uuid)
 
 	if data != null:
-		chunks[data["coord"] / LevelChunk.CHUNK_SIZE].unregister_block_entity(uuid)
+		if data["type"] == "drone":
+			data["node"].queue_free()
+		else:
+			chunks[data["coord"] / LevelChunk.CHUNK_SIZE].unregister_block_entity(uuid)
 
 func __wasm_entity_iron_ore(a0: int, a1: int, a2: int, a3: int, x: int, y: int, z: int, qty: int) -> void:
 	var uuid := Vector4i(a0, a1, a2, a3)
@@ -164,3 +181,30 @@ func __wasm_entity_iron_ore(a0: int, a1: int, a2: int, a3: int, x: int, y: int, 
 	if old != null:
 		chunks[old["coord"] / LevelChunk.CHUNK_SIZE].unregister_block_entity(uuid)
 	chunks[data["coord"] / LevelChunk.CHUNK_SIZE].register_block_entity(uuid, data)
+
+func __wasm_entity_drone(a0: int, a1: int, a2: int, a3: int, x: int, y: int, z: int) -> void:
+	var uuid := Vector4i(a0, a1, a2, a3)
+	var old = block_entities.get(uuid)
+
+	var node: Node3D
+	if old == null:
+		node = preload("res://drone/drone.tscn").instantiate()
+		node.uuid = uuid
+		node.name = "Drone_%8x%8x%8x%8x" % [
+			a0 & 0xffff_ffff,
+			a1 & 0xffff_ffff,
+			a2 & 0xffff_ffff,
+			a3 & 0xffff_ffff,
+		]
+		$Drones.add_child(node)
+	else:
+		node = old["node"]
+
+	var data := {
+		type = "drone",
+		coord = Vector3i(x, y, z),
+		node = node,
+	}
+	data.make_read_only()
+	block_entities[uuid] = data
+	node.update_data(data)
