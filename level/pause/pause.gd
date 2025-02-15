@@ -16,3 +16,6 @@ func __update(state: bool) -> void:
 func __resume() -> void:
 	get_tree().paused = false
 	__update(false)
+
+func __quit() -> void:
+	get_tree().quit()

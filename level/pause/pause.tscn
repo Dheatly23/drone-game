@@ -25,8 +25,16 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 
-[node name="ResumeBtn" type="Button" parent="Root/Center"]
+[node name="VBox" type="VBoxContainer" parent="Root/Center"]
+layout_mode = 2
+
+[node name="ResumeBtn" type="Button" parent="Root/Center/VBox"]
 layout_mode = 2
 text = "Resume"
 
-[connection signal="pressed" from="Root/Center/ResumeBtn" to="Root" method="__resume"]
+[node name="Quit" type="Button" parent="Root/Center/VBox"]
+layout_mode = 2
+text = "Quit"
+
+[connection signal="pressed" from="Root/Center/VBox/ResumeBtn" to="Root" method="__resume"]
+[connection signal="pressed" from="Root/Center/VBox/Quit" to="Root" method="__quit"]
