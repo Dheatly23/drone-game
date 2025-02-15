@@ -11,6 +11,8 @@ crate-type = ["cdylib"]
 
 [dependencies]
 glam.workspace = true
+rand.workspace = true
+rand_xoshiro.workspace = true
 rkyv.workspace = true
 
 level-state.workspace = true
@@ -20,4 +22,5 @@ workspace = true
 features = [
   "buffer",
   "buffer-large",
+  "getrandom",
 ]

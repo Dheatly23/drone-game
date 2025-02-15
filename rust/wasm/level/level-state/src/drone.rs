@@ -1,11 +1,6 @@
 use rkyv::{Archive, Deserialize, Serialize};
-use uuid::Uuid;
 
-use crate::block::Block;
-use crate::entity::{BlockEntity, BlockEntityData};
-use crate::LevelState;
-
-#[derive(Debug, Default, Clone, Archive, Serialize, Deserialize)]
+#[derive(Debug, Clone, Archive, Serialize, Deserialize)]
 #[non_exhaustive]
 pub struct Drone {
     pub command: Command,
@@ -14,15 +9,25 @@ pub struct Drone {
     pub move_cooldown: usize,
 }
 
-impl Drone {
-    pub const BLOCK: Block = Block::Drone;
+impl Default for Drone {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
-    pub fn place(self, level: &mut LevelState, x: usize, y: usize, z: usize) -> Uuid {
-        BlockEntity::new(x, y, z, BlockEntityData::Drone(self)).place(level, Self::BLOCK)
+impl Drone {
+    pub const fn new() -> Self {
+        Self {
+            command: Command::Noop,
+            is_command_valid: true,
+
+            move_cooldown: 0,
+        }
     }
 }
 
 #[derive(Debug, Default, Clone, Copy, Archive, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum Command {
     #[default]
     Noop,

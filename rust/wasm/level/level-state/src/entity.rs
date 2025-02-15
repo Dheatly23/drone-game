@@ -150,14 +150,24 @@ pub enum BlockEntityData {
     Drone(#[rkyv(with = AsBox)] crate::drone::Drone),
 }
 
-#[derive(Debug, Default, Clone, Copy, Archive, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Archive, Serialize, Deserialize)]
 #[non_exhaustive]
 pub struct IronOre {
     pub quantity: u64,
 }
 
+impl Default for IronOre {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl IronOre {
     pub const BLOCK: Block = Block::IronOre;
+
+    pub const fn new() -> Self {
+        Self { quantity: 0 }
+    }
 
     pub fn place(self, level: &mut LevelState, x: usize, y: usize, z: usize) -> Uuid {
         BlockEntity::new(x, y, z, BlockEntityData::IronOre(self)).place(level, Self::BLOCK)

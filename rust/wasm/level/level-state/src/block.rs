@@ -96,7 +96,6 @@ block_def! {
     Dirt = (1, true, true),
     Grass = (2, true, true),
     IronOre = (0x0100, false, true),
-    Drone = (0x8000, false, true),
 }
 
 impl From<u16> for Block {

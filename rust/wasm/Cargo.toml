@@ -16,6 +16,8 @@ foldhash = "^0.1"
 getrandom = "^0.3"
 glam = "^0.29"
 hashbrown = "^0.15"
+rand = "^0.9"
+rand_xoshiro = "^0.7"
 uuid = "^1"
 
 level-state.path = "level/level-state"
