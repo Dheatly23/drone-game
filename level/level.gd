@@ -156,6 +156,7 @@ func tick() -> void:
 	buffer_data = PackedByteArray()
 	wasm_instance.call_wasm(&"export_censored", [])
 	update_chunks.call_deferred()
+	mutex.unlock()
 
 	# Gather commands
 	var drones := []
@@ -168,11 +169,13 @@ func tick() -> void:
 		n.tick(buffer_data)
 	for n in drones:
 		var uuid: Vector4i = n.uuid
-		buffer_data = n.get_command()
-		if len(buffer_data) > 0:
+		var buf = n.get_command()
+		if len(buf) > 0:
+			mutex.lock()
+			buffer_data = buf
 			wasm_instance.call_wasm(&"set_command", [uuid.x, uuid.y, uuid.z, uuid.w])
-	buffer_data = PackedByteArray()
-	mutex.unlock()
+			buffer_data = PackedByteArray()
+			mutex.unlock()
 
 	var end := Time.get_ticks_usec()
 	#print("Tick: %.3f" % ((end - start) / 1000.0))
