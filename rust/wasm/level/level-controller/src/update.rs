@@ -24,17 +24,10 @@ fn drone_command(level: &mut LevelState) {
 
     // Move command
     {
-        #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-        enum State {
-            Moving,
-            Failing,
-            Failed,
-        }
-
         #[derive(Debug)]
         struct MoveData {
             id: Uuid,
-            state: Cell<State>,
+            moving: Cell<bool>,
 
             sx: usize,
             sy: usize,
@@ -92,7 +85,7 @@ fn drone_command(level: &mut LevelState) {
             };
             move_data.push(MoveData {
                 id,
-                state: Cell::new(State::Moving),
+                moving: Cell::new(true),
 
                 sx: x,
                 sy: y,
@@ -127,6 +120,7 @@ fn drone_command(level: &mut LevelState) {
         log(format_args!("{end_map:?}"));
 
         // Try to move
+        let mut stack = Vec::with_capacity(end_map.len());
         let mut prev = None;
         for v in &end_map {
             let prev = replace(&mut prev, Some((v.x, v.y, v.z)));
@@ -143,38 +137,37 @@ fn drone_command(level: &mut LevelState) {
             {
                 let v = &move_data[i];
                 log(format_args!("Failed: {v:?}"));
-                v.state.set(State::Failing);
+                v.moving.set(false);
+                stack.push(v);
             }
         }
 
         // Recursively un-move drones
-        let mut any = true;
-        while any {
-            any = false;
-            for v in &move_data {
-                if v.state.get() != State::Failing {
-                    // Skip moving or failed drone
+        while let Some(&MoveData {
+            sx: x,
+            sy: y,
+            sz: z,
+            ..
+        }) = stack.pop()
+        {
+            let i = end_map.partition_point(|t| {
+                t.x.cmp(&x)
+                    .then_with(|| t.z.cmp(&z))
+                    .then_with(|| t.y.cmp(&y))
+                    == Ordering::Less
+            });
+            for t in &end_map[i..] {
+                if t.x != x || t.y != y || t.z != z {
+                    break;
+                }
+                let Some(i) = t.i else {
                     continue;
                 };
-                v.state.set(State::Failed);
 
-                let mut j = end_map.partition_point(|t| {
-                    t.x.cmp(&v.sx)
-                        .then_with(|| t.z.cmp(&v.sz))
-                        .then_with(|| t.y.cmp(&v.sy))
-                        == Ordering::Less
-                });
-                while let Some(t) = end_map.get(j) {
-                    if t.x != v.sx || t.y != v.sy || t.z != v.sz {
-                        break;
-                    } else if let Some(i) = t.i {
-                        let v = &move_data[i];
-                        if v.state.get() == State::Moving {
-                            v.state.set(State::Failing);
-                            any = true;
-                        }
-                    }
-                    j += 1;
+                let v = &move_data[i];
+                if v.moving.replace(false) {
+                    log(format_args!("Failed: {v:?}"));
+                    stack.push(v);
                 }
             }
         }
@@ -183,7 +176,7 @@ fn drone_command(level: &mut LevelState) {
         // Move successful drones
         for MoveData {
             id,
-            state,
+            moving,
             ex,
             ey,
             ez,
@@ -201,7 +194,7 @@ fn drone_command(level: &mut LevelState) {
                 unreachable!("Block entity should be drone")
             };
 
-            if state.into_inner() != State::Moving {
+            if !moving.into_inner() {
                 d.is_command_valid = false;
                 continue;
             }
