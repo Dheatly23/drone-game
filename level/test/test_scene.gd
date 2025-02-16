@@ -5,11 +5,14 @@ extends Node3D
 
 var thread := Thread.new()
 var sema := Semaphore.new()
+var mutex := Mutex.new()
 var work_msg := "none"
 
 var time_acc := 0.0
 var ticking := false
+var is_inited := false
 
+var wasi_ctx := WasiContext.new().initialize({})
 var wasm_instance: WasmInstance
 var buffer_data := PackedByteArray()
 var crypto := Crypto.new()
@@ -63,13 +66,17 @@ func thread_fn(level) -> void:
 
 	while true:
 		sema.wait()
-		match work_msg:
+		mutex.lock()
+		var msg := work_msg
+		work_msg = ""
+		mutex.unlock()
+
+		match msg:
 			"tick":
 				level.tick()
 			"quit":
 				print("Worker thread done!")
 				return
-		work_msg = ""
 
 func _ready() -> void:
 	thread.start(thread_fn.bind($Level))
@@ -87,14 +94,37 @@ func _exit_tree() -> void:
 		thread.wait_to_finish()
 
 func __send_msg(msg: String) -> void:
-	while sema.try_wait():
-		pass
+	mutex.lock()
 	work_msg = msg
+	mutex.unlock()
 	sema.post()
 	#print("Send: %s" % msg)
 
 func __chunks_updated() -> void:
 	ticking = false
+
+	# Load WASM module to drone
+	if !is_inited:
+		is_inited = true
+
+		var be: Dictionary = $Level.block_entities
+		var drone = null
+		for k in be:
+			var v: Dictionary = be[k]
+			if v["type"] == "drone":
+				drone = v["node"]
+				break
+		assert(drone != null)
+		drone.initialize_wasm(
+			preload("res://wasm/drone_test_simple.wasm"),
+			{
+				"epoch.enable": true,
+				"epoch.timeout": 30.0,
+				"wasi.enable": true,
+				"wasi.context": wasi_ctx,
+				"wasi.args": ["drone"],
+			},
+		)
 
 func __wasm_random(p: int, n: int) -> void:
 	wasm_instance.memory_write(p, crypto.generate_random_bytes(n))

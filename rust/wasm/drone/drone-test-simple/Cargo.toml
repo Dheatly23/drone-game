@@ -1,0 +1,23 @@
+[package]
+name = "drone-test-simple"
+version = "0.1.0"
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+rkyv.workspace = true
+uuid.workspace = true
+
+level-state.workspace = true
+
+[dependencies.util-wasm]
+workspace = true
+features = [
+  "buffer",
+  "buffer-large",
+]

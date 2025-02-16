@@ -3,6 +3,7 @@ resolver = "3"
 members = [
   "level/*",
   "util",
+  "drone/*",
 ]
 
 [workspace.package]

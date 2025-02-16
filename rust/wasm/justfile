@@ -13,7 +13,10 @@ default: deploy
 build package:
   cargo build -p {{package}} --target wasm32-unknown-unknown --profile {{build_profile}} --config ./.cargo/config.toml {{extra_args}}
 
-build-all: (build "level-controller") (build "level-gen")
+build-wasi package:
+  cargo build -p {{package}} --target wasm32-wasip1 --profile {{build_profile}} --config ./.cargo/config.toml {{extra_args}}
+
+build-all: (build "level-controller") (build "level-gen") (build-wasi "drone-test-simple")
 
 deploy: build-all
   @let cmds = [[cmd closure]; \
@@ -41,13 +44,19 @@ deploy: build-all
 
 check-all:
   @ls ./level \
-  | get name \
-  | path basename \
-  | append "util-wasm" \
+  | insert target wasm32-unknown-unknown \
+  | interleave { \
+    ls ./drone \
+    | insert target wasm32-wasip1 \
+  } \
+  | select name target \
+  | update name { path basename } \
+  | append { name: "util-wasm" target: "wasm32-unknown-unknown" } \
+  | sort \
   | each { |v| \
-    print $"Crate: ($v)"; \
-    cargo check --all-features --target wasm32-unknown-unknown -p $v --config ./.cargo/config.toml {{extra_args}}; \
-    cargo clippy --all-features --target wasm32-unknown-unknown -p $v --config ./.cargo/config.toml {{extra_args}}; \
+    print $"Crate: ($v.name)" $"Target: ($v.target)"; \
+    cargo check --all-features --target $v.target -p $v.name --config ./.cargo/config.toml {{extra_args}}; \
+    cargo clippy --all-features --target $v.target -p $v.name --config ./.cargo/config.toml {{extra_args}}; \
   } | ignore
 
 fmt:

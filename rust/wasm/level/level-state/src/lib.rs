@@ -157,6 +157,16 @@ impl ArchivedLevelState {
         munge!(let Self { chunks, .. } = this);
         ArchivedVec::as_slice_seal(chunks).index(i)
     }
+
+    #[inline(always)]
+    pub fn block_entities(&self) -> &ArchivedBlockEntities {
+        &self.entities
+    }
+
+    pub fn block_entities_mut(this: Seal<'_, Self>) -> Seal<'_, ArchivedBlockEntities> {
+        munge!(let Self { entities, .. } = this);
+        entities
+    }
 }
 
 pub const CHUNK_SIZE: usize = 16;

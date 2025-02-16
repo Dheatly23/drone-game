@@ -127,11 +127,13 @@ func init_chunks() -> void:
 func update_chunks() -> void:
 	mutex.lock()
 	wasm_instance.call_wasm(&"entity_update", [])
+	mutex.unlock()
 
 	for k in chunks:
+		mutex.lock()
 		chunks[k].update_chunk()
+		mutex.unlock()
 
-	mutex.unlock()
 	chunks_updated.emit()
 
 func init_empty() -> void:
@@ -170,12 +172,11 @@ func tick() -> void:
 	for n in drones:
 		var uuid: Vector4i = n.uuid
 		var buf = n.get_command()
-		if len(buf) > 0:
-			mutex.lock()
-			buffer_data = buf
-			wasm_instance.call_wasm(&"set_command", [uuid.x, uuid.y, uuid.z, uuid.w])
-			buffer_data = PackedByteArray()
-			mutex.unlock()
+		mutex.lock()
+		buffer_data = buf
+		wasm_instance.call_wasm(&"set_command", [uuid.x, uuid.y, uuid.z, uuid.w])
+		buffer_data = PackedByteArray()
+		mutex.unlock()
 
 	var end := Time.get_ticks_usec()
 	#print("Tick: %.3f" % ((end - start) / 1000.0))

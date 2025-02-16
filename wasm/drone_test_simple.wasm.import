@@ -1,0 +1,15 @@
+[remap]
+
+importer="godot_wasm.wasm"
+type="WasmModule"
+uid="uid://1idgx7hmk24a"
+path="res://.godot/imported/drone_test_simple.wasm-3a1eed9bd5d27ec4333ece03b63fe24c.cwasm"
+
+[deps]
+
+source_file="res://wasm/drone_test_simple.wasm"
+dest_files=["res://.godot/imported/drone_test_simple.wasm-3a1eed9bd5d27ec4333ece03b63fe24c.cwasm"]
+
+[params]
+
+include_original_file=false

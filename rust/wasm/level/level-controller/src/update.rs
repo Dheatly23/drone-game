@@ -1,12 +1,15 @@
+use std::cell::Cell;
 use std::cmp::Ordering;
 use std::mem::replace;
 
 use rand::prelude::*;
 use rand_xoshiro::Xoshiro256PlusPlus;
+use uuid::Uuid;
 
 use level_state::{
     Block, BlockEntity, BlockEntityData, Command, Direction, LevelState, CHUNK_SIZE,
 };
+use util_wasm::log;
 
 const UPDATE_RATE: usize = 32;
 
@@ -20,113 +23,194 @@ fn drone_command(level: &mut LevelState) {
     let (ex, ey, ez) = (sx * CHUNK_SIZE, sy * CHUNK_SIZE, sz * CHUNK_SIZE);
 
     // Move command
-    let mut move_data = Vec::new();
-    let mut end_map = Vec::new();
-    for (id, v) in level.block_entities_mut().entries_mut() {
-        let BlockEntity {
-            data: BlockEntityData::Drone(ref mut d),
-            x,
-            y,
-            z,
-            ..
-        } = *v
-        else {
-            continue;
-        };
-        end_map.push(([x, y, z], None));
+    {
+        #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+        enum State {
+            Moving,
+            Failing,
+            Failed,
+        }
 
-        let Command::Move(dir) = d.command else {
-            d.is_command_valid = matches!(d.command, Command::Noop);
-            continue;
-        };
-        let dest = match dir {
-            Direction::Left if x + 1 < ex => [x + 1, z, y],
-            Direction::Up if y + 1 < ey => [x, z, y + 1],
-            Direction::Forward if z + 1 < ez => [x, z + 1, y],
-            Direction::Right if x > 0 => [x - 1, z, y],
-            Direction::Down if y > 0 => [x, z, y - 1],
-            Direction::Back if z > 0 => [x, z - 1, y],
-            _ => {
-                d.is_command_valid = false;
+        #[derive(Debug)]
+        struct MoveData {
+            id: Uuid,
+            state: Cell<State>,
+
+            sx: usize,
+            sy: usize,
+            sz: usize,
+            ex: usize,
+            ey: usize,
+            ez: usize,
+        }
+
+        #[derive(Debug)]
+        struct EndMap {
+            x: usize,
+            y: usize,
+            z: usize,
+            i: Option<usize>,
+        }
+
+        let mut move_data = Vec::new();
+        let mut end_map = Vec::new();
+        for (&id, v) in level.block_entities_mut().entries_mut() {
+            let BlockEntity {
+                data: BlockEntityData::Drone(ref mut d),
+                x,
+                y,
+                z,
+                ..
+            } = *v
+            else {
                 continue;
-            }
-        };
-        end_map.last_mut().unwrap().1 = Some(move_data.len());
-        move_data.push((*id, [x, z, y], dest, true));
-    }
+            };
+            end_map.push(EndMap { x, y, z, i: None });
+            log(format_args!("{x} {y} {z} {d:?}"));
 
-    // Sort end mapping
-    // Make sure None is put before Some(index)
-    end_map.sort_unstable_by(|(ca, ia), (cb, ib)| match ca.cmp(cb) {
-        Ordering::Equal => match (*ia, *ib) {
-            (None, None) => Ordering::Equal,
-            (None, Some(_)) => Ordering::Less,
-            (Some(_), None) => Ordering::Greater,
-            (Some(a), Some(b)) => move_data[a].1.cmp(&move_data[b].1),
-        },
-        v => v,
-    });
+            let Command::Move(dir) = d.command else {
+                d.is_command_valid = matches!(d.command, Command::Noop);
+                continue;
+            };
+            let (ex, ey, ez) = match dir {
+                Direction::Left if x + 1 < ex => (x + 1, y, z),
+                Direction::Up if y + 1 < ey => (x, y + 1, z),
+                Direction::Forward if z + 1 < ez => (x, y, z + 1),
+                Direction::Right if x > 0 => (x - 1, y, z),
+                Direction::Down if y > 0 => (x, y - 1, z),
+                Direction::Back if z > 0 => (x, y, z - 1),
+                _ => {
+                    d.is_command_valid = false;
+                    continue;
+                }
+            };
+            *end_map.last_mut().unwrap() = EndMap {
+                x: ex,
+                y: ey,
+                z: ez,
+                i: Some(move_data.len()),
+            };
+            move_data.push(MoveData {
+                id,
+                state: Cell::new(State::Moving),
 
-    // Try to move
-    let mut prev = None;
-    for &(d, i) in &end_map {
-        let prev = replace(&mut prev, Some(d));
-        let Some(i) = i else {
-            continue;
-        };
+                sx: x,
+                sy: y,
+                sz: z,
+                ex,
+                ey,
+                ez,
+            });
+        }
+        log(format_args!("start: {move_data:?}"));
 
-        move_data[i].3 = prev.is_none_or(|v| v == d)
-            && !level
-                .get_chunk_mut(d[0] / CHUNK_SIZE, d[1] / CHUNK_SIZE, d[2] / CHUNK_SIZE)
-                .get_block_mut(d[0] % CHUNK_SIZE, d[1] % CHUNK_SIZE, d[2] % CHUNK_SIZE)
-                .get()
-                .is_solid();
-    }
+        // Sort end mapping
+        // Make sure None is put before Some(index)
+        end_map.sort_unstable_by(|a, b| {
+            a.x.cmp(&b.x)
+                .then_with(|| a.z.cmp(&b.z))
+                .then_with(|| a.y.cmp(&b.y))
+                .then_with(|| match (a.i, b.i) {
+                    (None, None) => Ordering::Equal,
+                    (None, Some(_)) => Ordering::Less,
+                    (Some(_), None) => Ordering::Greater,
+                    (Some(a), Some(b)) => {
+                        let a = &move_data[a];
+                        let b = &move_data[b];
+                        a.sx.cmp(&b.sx)
+                            .then_with(|| a.sz.cmp(&b.sz))
+                            .then_with(|| a.sy.cmp(&b.sy))
+                            .then_with(|| a.id.cmp(&b.id))
+                    }
+                })
+        });
+        log(format_args!("{end_map:?}"));
 
-    // Recursively un-move drones
-    let mut any = true;
-    while any {
-        any = false;
-        for i in 0..move_data.len() {
-            let (_, _, d, true) = move_data[i] else {
-                // Skip already failed drone
+        // Try to move
+        let mut prev = None;
+        for v in &end_map {
+            let prev = replace(&mut prev, Some((v.x, v.y, v.z)));
+            let Some(i) = v.i else {
                 continue;
             };
 
-            let mut j = end_map.partition_point(|(c, _)| *c < d);
-            while let Some((c, k)) = end_map.get(j) {
-                if *c != d {
-                    break;
-                } else if !k.is_some_and(|i| move_data[i].3) {
-                    move_data[i].3 = false;
-                    any = true;
-                    break;
-                }
-                j += 1;
+            if prev.is_some_and(|(x, y, z)| x == v.x && y == v.y && z == v.z)
+                || level
+                    .get_chunk_mut(v.x / CHUNK_SIZE, v.y / CHUNK_SIZE, v.z / CHUNK_SIZE)
+                    .get_block_mut(v.x % CHUNK_SIZE, v.y % CHUNK_SIZE, v.z % CHUNK_SIZE)
+                    .get()
+                    .is_solid()
+            {
+                let v = &move_data[i];
+                log(format_args!("Failed: {v:?}"));
+                v.state.set(State::Failing);
             }
         }
-    }
 
-    // Move successful drones
-    for (id, _, dest, v) in move_data {
-        let Some(BlockEntity {
-            data: BlockEntityData::Drone(d),
-            x,
-            y,
-            z,
-            ..
-        }) = level.block_entities_mut().get_mut(&id)
-        else {
-            unreachable!("Block entity should be drone")
-        };
+        // Recursively un-move drones
+        let mut any = true;
+        while any {
+            any = false;
+            for v in &move_data {
+                if v.state.get() != State::Failing {
+                    // Skip moving or failed drone
+                    continue;
+                };
+                v.state.set(State::Failed);
 
-        if !v {
-            d.is_command_valid = false;
-            continue;
+                let mut j = end_map.partition_point(|t| {
+                    t.x.cmp(&v.sx)
+                        .then_with(|| t.z.cmp(&v.sz))
+                        .then_with(|| t.y.cmp(&v.sy))
+                        == Ordering::Less
+                });
+                while let Some(t) = end_map.get(j) {
+                    if t.x != v.sx || t.y != v.sy || t.z != v.sz {
+                        break;
+                    } else if let Some(i) = t.i {
+                        let v = &move_data[i];
+                        if v.state.get() == State::Moving {
+                            v.state.set(State::Failing);
+                            any = true;
+                        }
+                    }
+                    j += 1;
+                }
+            }
         }
+        log(format_args!("end: {move_data:?}"));
 
-        d.is_command_valid = true;
-        [*x, *y, *z] = dest;
+        // Move successful drones
+        for MoveData {
+            id,
+            state,
+            ex,
+            ey,
+            ez,
+            ..
+        } in move_data
+        {
+            let Some(BlockEntity {
+                data: BlockEntityData::Drone(d),
+                x,
+                y,
+                z,
+                ..
+            }) = level.block_entities_mut().get_mut(&id)
+            else {
+                unreachable!("Block entity should be drone")
+            };
+
+            if state.into_inner() != State::Moving {
+                d.is_command_valid = false;
+                continue;
+            }
+
+            d.is_command_valid = true;
+            *x = ex;
+            *y = ey;
+            *z = ez;
+        }
     }
 
     // Clear all drone commands

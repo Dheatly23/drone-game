@@ -38,6 +38,16 @@ impl BlockEntities {
         }
     }
 
+    #[inline(always)]
+    pub fn len(&self) -> usize {
+        self.data.len()
+    }
+
+    #[inline(always)]
+    pub fn is_empty(&self) -> bool {
+        self.data.is_empty()
+    }
+
     pub fn add(&mut self, entity: BlockEntity) -> Uuid {
         let entry = loop {
             if let Entry::Vacant(v) = self.data.entry(Uuid::new_v4()) {
@@ -74,19 +84,16 @@ impl BlockEntities {
         self.data.get_mut(uuid).and_then(Option::as_mut)
     }
 
-    #[inline(always)]
     pub fn entries(&self) -> impl Iterator<Item = (&'_ Uuid, &'_ BlockEntity)> {
         self.data.iter().filter_map(|(k, v)| Some((k, v.as_ref()?)))
     }
 
-    #[inline(always)]
     pub fn entries_mut(&mut self) -> impl Iterator<Item = (&'_ Uuid, &'_ mut BlockEntity)> {
         self.data
             .iter_mut()
             .filter_map(|(k, v)| Some((k, v.as_mut()?)))
     }
 
-    #[inline(always)]
     pub fn keys(&self) -> impl Iterator<Item = &'_ Uuid> {
         self.data
             .iter()
@@ -103,6 +110,33 @@ impl BlockEntities {
             src.entries()
                 .filter_map(move |(k, v)| Some((*k, Some(f(k, v)?)))),
         );
+    }
+}
+
+impl ArchivedBlockEntities {
+    #[inline(always)]
+    pub fn len(&self) -> usize {
+        self.data.len()
+    }
+
+    #[inline(always)]
+    pub fn is_empty(&self) -> bool {
+        self.data.is_empty()
+    }
+
+    #[inline(always)]
+    pub fn get(&self, uuid: &Uuid) -> Option<&ArchivedBlockEntity> {
+        self.data.get(uuid).and_then(|v| v.as_ref())
+    }
+
+    pub fn entries(&self) -> impl Iterator<Item = (&'_ Uuid, &'_ ArchivedBlockEntity)> {
+        self.data.iter().filter_map(|(k, v)| Some((k, v.as_ref()?)))
+    }
+
+    pub fn keys(&self) -> impl Iterator<Item = &'_ Uuid> {
+        self.data
+            .iter()
+            .filter_map(|(k, v)| if v.is_some() { Some(k) } else { None })
     }
 }
 

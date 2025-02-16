@@ -8,7 +8,7 @@ mod update;
 use std::mem::replace;
 
 use rkyv::api::high::{from_bytes, to_bytes_in};
-use rkyv::rancor::Panic;
+use rkyv::rancor::{Failure, Panic};
 use rkyv::ser::writer::Buffer;
 use uuid::Uuid;
 
@@ -153,7 +153,10 @@ pub extern "C" fn set_command(a0: u32, a1: u32, a2: u32, a3: u32) {
         else {
             return;
         };
-        d.command = from_bytes::<_, Panic>(read()).unwrap();
+        if let Ok(v) = from_bytes::<_, Failure>(read()) {
+            log(format_args!("{id} {v:?}"));
+            d.command = v;
+        }
     }
 }
 
