@@ -31,6 +31,14 @@ func initialize_wasm(module: WasmModule, config: Dictionary) -> void:
 	)
 	wasm_instance.call_wasm(&"init", [uuid.x, uuid.y, uuid.z, uuid.w])
 
+	var c := hash(uuid)
+	c ^= c >> 32
+	$Mesh.material_override.albedo_color = Color(
+		float((c ^ (c >> 24)) & 255) / 255.,
+		float(((c >> 8) ^ (c >> 24)) & 255) / 255.,
+		float(((c >> 16) ^ (c >> 24)) & 255) / 255.,
+	)
+
 func update_data(data: Dictionary) -> void:
 	position = Vector3(data["coord"])
 
