@@ -34,12 +34,11 @@ func initialize_wasm(module: WasmModule, config: Dictionary) -> void:
 func update_data(data: Dictionary) -> void:
 	position = Vector3(data["coord"])
 
-func tick(level_data: PackedByteArray) -> void:
+func tick(level_data: PackedByteArray) -> PackedByteArray:
 	if wasm_instance != null:
 		buffer_data = level_data
 		wasm_instance.call_wasm(&"tick", [])
 
-func get_command() -> PackedByteArray:
 	var ret := buffer_data
 	buffer_data = PackedByteArray()
 	return ret

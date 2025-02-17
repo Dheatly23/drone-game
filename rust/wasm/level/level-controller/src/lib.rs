@@ -71,11 +71,11 @@ pub extern "C" fn import() {
 
     let mut prev = None;
     for (c @ (x, y, z), id, b) in v {
+        log(format_args!("{id}: {x} {y} {z}"));
         if x >= sx || y >= sy || z >= sz || replace(&mut prev, Some(c)).is_some_and(|p| c == p) {
             level.block_entities_mut().remove(&id);
             continue;
         }
-        log(format_args!("{x} {y} {z}"));
 
         if let Some(b) = b {
             level

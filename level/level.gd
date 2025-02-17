@@ -1,6 +1,7 @@
 extends Node3D
 
 signal chunks_updated()
+signal initialized()
 
 @export var wasm_module: WasmModule = null
 @export_group("Chunk Size")
@@ -122,9 +123,9 @@ func init_chunks() -> void:
 
 	block_entities.clear()
 
-	update_chunks()
+	update_chunks(true)
 
-func update_chunks() -> void:
+func update_chunks(init: bool = false) -> void:
 	mutex.lock()
 	wasm_instance.call_wasm(&"entity_update", [])
 	mutex.unlock()
@@ -134,6 +135,8 @@ func update_chunks() -> void:
 		chunks[k].update_chunk()
 		mutex.unlock()
 
+	if init:
+		initialized.emit()
 	chunks_updated.emit()
 
 func init_empty() -> void:
@@ -152,12 +155,10 @@ func import_level(data: PackedByteArray) -> void:
 func tick() -> void:
 	var start := Time.get_ticks_usec()
 
+	# Get level data
 	mutex.lock()
-	wasm_instance.call_wasm(&"tick", [])
-
 	buffer_data = PackedByteArray()
 	wasm_instance.call_wasm(&"export_censored", [])
-	update_chunks.call_deferred()
 	mutex.unlock()
 
 	# Gather commands
@@ -167,19 +168,34 @@ func tick() -> void:
 		if v["type"] != "drone":
 			continue
 		drones.push_back(v["node"])
-	for n in drones:
-		n.tick(buffer_data)
-	for n in drones:
-		var uuid: Vector4i = n.uuid
-		var buf = n.get_command()
-		mutex.lock()
-		buffer_data = buf
-		wasm_instance.call_wasm(&"set_command", [uuid.x, uuid.y, uuid.z, uuid.w])
-		buffer_data = PackedByteArray()
-		mutex.unlock()
+
+	var group_id := WorkerThreadPool.add_group_task(
+		__drone_work.bind(drones, buffer_data),
+		len(drones),
+		-1,
+		false,
+		"Drone Work",
+	)
+	WorkerThreadPool.wait_for_group_task_completion(group_id)
+
+	# Tick
+	mutex.lock()
+	wasm_instance.call_wasm(&"tick", [])
+	update_chunks.call_deferred()
+	mutex.unlock()
 
 	var end := Time.get_ticks_usec()
 	#print("Tick: %.3f" % ((end - start) / 1000.0))
+
+func __drone_work(ix, drones: Array, data: PackedByteArray) -> void:
+	var n = drones[ix]
+	var uuid: Vector4i = n.uuid
+	var buf = n.tick(data)
+	mutex.lock()
+	buffer_data = buf
+	wasm_instance.call_wasm(&"set_command", [uuid.x, uuid.y, uuid.z, uuid.w])
+	buffer_data = PackedByteArray()
+	mutex.unlock()
 
 func __wasm_random(p: int, n: int) -> void:
 	wasm_instance.memory_write(p, crypto.generate_random_bytes(n))

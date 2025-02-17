@@ -10,7 +10,6 @@ var work_msg := "none"
 
 var time_acc := 0.0
 var ticking := false
-var is_inited := false
 
 var wasi_ctx := WasiContext.new().initialize({})
 var wasm_instance: WasmInstance
@@ -103,19 +102,15 @@ func __send_msg(msg: String) -> void:
 func __chunks_updated() -> void:
 	ticking = false
 
+func __level_inited() -> void:
 	# Load WASM module to drone
-	if !is_inited:
-		is_inited = true
+	var be: Dictionary = $Level.block_entities
+	for k in be:
+		var v: Dictionary = be[k]
+		if v["type"] != "drone":
+			continue
 
-		var be: Dictionary = $Level.block_entities
-		var drone = null
-		for k in be:
-			var v: Dictionary = be[k]
-			if v["type"] == "drone":
-				drone = v["node"]
-				break
-		assert(drone != null)
-		drone.initialize_wasm(
+		v["node"].initialize_wasm(
 			preload("res://wasm/drone_test_simple.wasm"),
 			{
 				"epoch.enable": true,

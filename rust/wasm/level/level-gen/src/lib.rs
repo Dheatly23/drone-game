@@ -15,20 +15,22 @@ pub extern "C" fn generate() {
         }
     }
 
-    for z in 1..CHUNK_SIZE - 1 {
-        for x in 1..CHUNK_SIZE - 1 {
+    for z in 4..CHUNK_SIZE - 4 {
+        for x in 4..CHUNK_SIZE - 4 {
             let mut v = IronOre::new();
             v.quantity = x as u64 * z as u64 * 1000;
             v.place(&mut level, x, 1, z);
         }
     }
 
-    level.block_entities_mut().add(BlockEntity::new(
-        0,
-        1,
-        0,
-        BlockEntityData::Drone(Drone::new()),
-    ));
+    for (x, z) in (0..CHUNK_SIZE - 1).flat_map(|v| [(v, 0), (v + 1, CHUNK_SIZE - 1), (0, v + 1), (CHUNK_SIZE - 1, v)]) {
+        level.block_entities_mut().add(BlockEntity::new(
+            x,
+            1,
+            z,
+            BlockEntityData::Drone(Drone::new()),
+        ));
+    }
 
     unsafe {
         write(move |buf| {

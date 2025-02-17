@@ -25,7 +25,6 @@ pub extern "C" fn init(a0: u32, a1: u32, a2: u32, a3: u32) {
 #[no_mangle]
 pub extern "C" fn tick() {
     let level = access::<ArchivedLevelState, Panic>(unsafe { read() }).unwrap();
-    let (sx, _, sz) = level.chunk_size();
     let Some(ArchivedBlockEntity {
         data: ArchivedBlockEntityData::Drone(_),
         x,
@@ -38,9 +37,9 @@ pub extern "C" fn tick() {
     let x = x.to_native() as usize;
     let z = z.to_native() as usize;
 
-    let dir = if x == 0 && z != sz * CHUNK_SIZE - 1 {
+    let dir = if x == 0 && z != CHUNK_SIZE - 1 {
         Direction::Forward
-    } else if x == sx * CHUNK_SIZE - 1 && z != 0 {
+    } else if x == CHUNK_SIZE - 1 && z != 0 {
         Direction::Back
     } else if z == 0 {
         Direction::Right
