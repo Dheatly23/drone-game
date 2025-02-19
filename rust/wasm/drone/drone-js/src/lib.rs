@@ -19,7 +19,7 @@ use std::task::{Context as FutContext, Poll, Waker};
 use arrayvec::ArrayString;
 use boa_engine::class::{Class, ClassBuilder};
 use boa_engine::job::{FutureJob, JobQueue, NativeJob};
-use boa_engine::object::builtins::JsArray;
+use boa_engine::object::builtins::{JsArray, JsPromise};
 use boa_engine::object::{IntegrityLevel, ObjectInitializer};
 use boa_engine::prelude::*;
 use boa_engine::property::Attribute;
@@ -150,12 +150,12 @@ impl Level {
             0,
         );
         builder.function(
-            NativeFunction::from_async_fn(Self::submit),
+            NativeFunction::from_copy_closure(Self::submit),
             js_string!("submit"),
             0,
         );
         builder.function(
-            NativeFunction::from_async_fn(Self::tick),
+            NativeFunction::from_copy_closure(Self::tick),
             js_string!("tick"),
             0,
         );
@@ -364,30 +364,25 @@ impl Level {
         Ok(builder.build().into())
     }
 
-    fn submit(_: &JsValue, args: &[JsValue], ctx: &mut Context) -> CommandFuture {
-        let cmd = match args.get_or_undefined(0).try_js_into::<JsObject>(ctx) {
-            Ok(v) => v,
-            Err(e) => return CommandFuture::Err(Some(e)),
-        };
+    fn submit(_: &JsValue, args: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
+        let cmd = args.get_or_undefined(0).try_js_into::<JsObject>(ctx)?;
 
-        let s = match cmd
-            .get(js_string!("command"), ctx)
-            .and_then(|v| v.try_js_into::<JsString>(ctx))
+        let cmd = match js_str_small(
+            cmd.get(js_string!("command"), ctx)?
+                .try_js_into::<JsString>(ctx)?
+                .as_str(),
+        )
+        .as_deref()
         {
-            Ok(v) => v,
-            Err(e) => return CommandFuture::Err(Some(e)),
-        };
-        let cmd = match js_str_small(s.as_str()).as_deref() {
             Some("noop") => Some(Command::Noop),
             Some("move") => {
-                let s = match cmd
-                    .get(js_string!("direction"), ctx)
-                    .and_then(|v| v.try_js_into::<JsString>(ctx))
+                match js_str_small(
+                    cmd.get(js_string!("direction"), ctx)?
+                        .try_js_into::<JsString>(ctx)?
+                        .as_str(),
+                )
+                .as_deref()
                 {
-                    Ok(v) => v,
-                    Err(e) => return CommandFuture::Err(Some(e)),
-                };
-                match js_str_small(s.as_str()).as_deref() {
                     Some("up") => Some(Command::Move(Direction::Up)),
                     Some("down") => Some(Command::Move(Direction::Down)),
                     Some("left") => Some(Command::Move(Direction::Left)),
@@ -398,26 +393,32 @@ impl Level {
                 }
             }
             _ => None,
-        };
-        let Some(cmd) = cmd else {
-            return CommandFuture::Err(Some(js_error!("invalid command")));
-        };
-
-        CommandFuture::Command {
-            cmd: if unsafe { write_cmd(&cmd) } {
-                None
-            } else {
-                Some(cmd)
-            },
-            waker: Rc::new(Cell::new(None)),
         }
+        .ok_or_else(|| js_error!("invalid command"))?;
+
+        Ok(JsPromise::from_future(
+            CommandFuture {
+                cmd: if unsafe { write_cmd(&cmd) } {
+                    None
+                } else {
+                    Some(cmd)
+                },
+                waker: Rc::new(Cell::new(None)),
+            },
+            ctx,
+        )
+        .into())
     }
 
-    fn tick(_: &JsValue, _: &[JsValue], _: &mut Context) -> CommandFuture {
-        CommandFuture::Command {
-            cmd: None,
-            waker: Rc::new(Cell::new(None)),
-        }
+    fn tick(_: &JsValue, _: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
+        Ok(JsPromise::from_future(
+            CommandFuture {
+                cmd: None,
+                waker: Rc::new(Cell::new(None)),
+            },
+            ctx,
+        )
+        .into())
     }
 
     fn downcast_this(this: &JsValue) -> JsResult<impl '_ + DerefMut<Target = Self>> {
@@ -718,36 +719,30 @@ unsafe fn write_cmd(cmd: &Command) -> bool {
     true
 }
 
-enum CommandFuture {
-    Err(Option<JsError>),
-    Command {
-        cmd: Option<Command>,
-        waker: Rc<Cell<Option<Waker>>>,
-    },
+struct CommandFuture {
+    cmd: Option<Command>,
+    waker: Rc<Cell<Option<Waker>>>,
 }
 
 impl Future for CommandFuture {
     type Output = JsResult<JsValue>;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut FutContext<'_>) -> Poll<Self::Output> {
-        match &mut *self {
-            Self::Err(e) => Poll::Ready(Err(e.take().unwrap())),
-            Self::Command { cmd, waker } => {
-                let waited = waker.replace(Some(cx.waker().clone())).is_none();
-                if waited {
-                    unsafe { (*(&raw mut WAKERS)).push(waker.clone()) }
-                }
+        let Self { cmd, waker } = &mut *self;
 
-                if let Some(v) = &*cmd {
-                    if unsafe { write_cmd(v) } {
-                        *cmd = None;
-                    }
-                } else if waited {
-                    return Poll::Ready(Ok(JsValue::undefined()));
-                }
-
-                Poll::Pending
-            }
+        let waited = waker.replace(Some(cx.waker().clone())).is_none();
+        if waited {
+            unsafe { (*(&raw mut WAKERS)).push(waker.clone()) }
         }
+
+        if let Some(v) = &*cmd {
+            if unsafe { write_cmd(v) } {
+                *cmd = None;
+            }
+        } else if waited {
+            return Poll::Ready(Ok(JsValue::undefined()));
+        }
+
+        Poll::Pending
     }
 }
