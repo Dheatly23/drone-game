@@ -220,10 +220,10 @@ impl Level {
     }
 
     fn get_chunk(this: &JsValue, args: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
-        let mut this = Self::downcast_this(this)?;
         let x = args.get_or_undefined(0).try_js_into::<usize>(ctx)?;
         let y = args.get_or_undefined(1).try_js_into::<usize>(ctx)?;
         let z = args.get_or_undefined(2).try_js_into::<usize>(ctx)?;
+        let mut this = Self::downcast_this(this)?;
 
         let level = unsafe {
             match &*(&raw const LEVEL) {
