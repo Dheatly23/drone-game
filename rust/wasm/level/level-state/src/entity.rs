@@ -190,6 +190,7 @@ impl BlockEntity {
 }
 
 #[derive(Debug, Clone, Archive, Serialize, Deserialize)]
+#[rkyv(attr(non_exhaustive))]
 #[non_exhaustive]
 pub enum BlockEntityData {
     IronOre(IronOre),

@@ -16,7 +16,7 @@ build package:
 build-wasi package:
   cargo build -p {{package}} --target wasm32-wasip1 --profile {{build_profile}} --config ./.cargo/config.toml {{extra_args}}
 
-build-all: (build "level-controller") (build "level-gen") (build-wasi "drone-test-simple")
+build-all: (build "level-controller") (build "level-gen") (build-wasi "drone-test-simple") (build-wasi "drone-js")
 
 deploy: build-all
   @let cmds = [[cmd closure]; \
