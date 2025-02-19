@@ -303,8 +303,9 @@ impl Level {
         let mut s = String::new();
         Ok(JsArray::from_iter(
             level.block_entities().entries().filter_map(|(k, v)| {
-                if v.x.to_native() as usize
-                    != || v.y.to_native() as usize != y || v.z.to_native() as usize != z
+                if v.x.to_native() as usize != x
+                    || v.y.to_native() as usize != y
+                    || v.z.to_native() as usize != z
                 {
                     return None;
                 }
