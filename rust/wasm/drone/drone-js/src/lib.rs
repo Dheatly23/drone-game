@@ -7,7 +7,7 @@ use std::collections::hash_map::{Entry, HashMap};
 use std::collections::vec_deque::VecDeque;
 use std::env::args;
 use std::error::Error;
-use std::fmt::{Debug, Display, Formatter, Result as FmtResult};
+use std::fmt::{Debug, Display, Formatter, Result as FmtResult, Write as _};
 use std::future::Future;
 use std::mem::swap;
 use std::ops::{Deref, DerefMut};
@@ -19,6 +19,7 @@ use std::task::{Context as FutContext, Poll, Waker};
 use arrayvec::ArrayString;
 use boa_engine::class::{Class, ClassBuilder};
 use boa_engine::job::{FutureJob, JobQueue, NativeJob};
+use boa_engine::object::builtins::JsArray;
 use boa_engine::object::{IntegrityLevel, ObjectInitializer};
 use boa_engine::prelude::*;
 use boa_engine::property::Attribute;
@@ -139,6 +140,16 @@ impl Level {
             0,
         );
         builder.function(
+            NativeFunction::from_copy_closure(Self::get_block_entity_uuids),
+            js_string!("getBlockEntityUuids"),
+            0,
+        );
+        builder.function(
+            NativeFunction::from_copy_closure(Self::get_block_entity_uuids_at),
+            js_string!("getBlockEntityUuidsAt"),
+            0,
+        );
+        builder.function(
             NativeFunction::from_async_fn(Self::submit),
             js_string!("submit"),
             0,
@@ -150,7 +161,7 @@ impl Level {
         );
         builder.property(
             js_string!("uuid"),
-            JsString::from(unsafe { (*(&raw const UUID)).hyphenated().to_string() }),
+            JsString::from(unsafe { (*(&raw const UUID)).as_hyphenated().to_string() }),
             Attribute::CONFIGURABLE | Attribute::ENUMERABLE,
         );
 
@@ -250,6 +261,60 @@ impl Level {
         }
         .get()
         .clone()
+        .into())
+    }
+
+    fn get_block_entity_uuids(_: &JsValue, _: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
+        let level = unsafe {
+            match &*(&raw const LEVEL) {
+                Some(v) => v,
+                None => return Err(JsError::from_rust(LevelUninitError)),
+            }
+        };
+
+        let mut s = String::new();
+        Ok(JsArray::from_iter(
+            level.block_entities().keys().filter_map(|k| {
+                s.clear();
+                write!(s, "{}", k.as_hyphenated()).ok()?;
+                Some(JsString::from(&*s).into())
+            }),
+            ctx,
+        )
+        .into())
+    }
+
+    fn get_block_entity_uuids_at(
+        _: &JsValue,
+        args: &[JsValue],
+        ctx: &mut Context,
+    ) -> JsResult<JsValue> {
+        let x = args.get_or_undefined(0).try_js_into::<usize>(ctx)?;
+        let y = args.get_or_undefined(1).try_js_into::<usize>(ctx)?;
+        let z = args.get_or_undefined(2).try_js_into::<usize>(ctx)?;
+
+        let level = unsafe {
+            match &*(&raw const LEVEL) {
+                Some(v) => v,
+                None => return Err(JsError::from_rust(LevelUninitError)),
+            }
+        };
+
+        let mut s = String::new();
+        Ok(JsArray::from_iter(
+            level.block_entities().entries().filter_map(|(k, v)| {
+                if v.x.to_native() as usize
+                    != || v.y.to_native() as usize != y || v.z.to_native() as usize != z
+                {
+                    return None;
+                }
+
+                s.clear();
+                write!(s, "{}", k.as_hyphenated()).ok()?;
+                Some(JsString::from(&*s).into())
+            }),
+            ctx,
+        )
         .into())
     }
 
