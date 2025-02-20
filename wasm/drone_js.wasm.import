@@ -1,0 +1,15 @@
+[remap]
+
+importer="godot_wasm.wasm"
+type="WasmModule"
+uid="uid://bhxridj7fl77f"
+path="res://.godot/imported/drone_js.wasm-a9b041013975c32d94163955fd2ed283.cwasm"
+
+[deps]
+
+source_file="res://wasm/drone_js.wasm"
+dest_files=["res://.godot/imported/drone_js.wasm-a9b041013975c32d94163955fd2ed283.cwasm"]
+
+[params]
+
+include_original_file=false

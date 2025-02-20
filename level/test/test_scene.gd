@@ -78,6 +78,10 @@ func thread_fn(level) -> void:
 				return
 
 func _ready() -> void:
+	wasi_ctx.stdout_emit.connect(__log)
+	wasi_ctx.stderr_emit.connect(__log)
+	wasi_ctx.mount_physical_dir(ProjectSettings.globalize_path("res://js"), "/js")
+
 	thread.start(thread_fn.bind($Level))
 
 func _process(delta: float) -> void:
@@ -111,13 +115,17 @@ func __level_inited() -> void:
 			continue
 
 		v["node"].initialize_wasm(
-			preload("res://wasm/drone_test_simple.wasm"),
+			preload("res://wasm/drone_js.wasm"),
 			{
 				"epoch.enable": true,
 				"epoch.timeout": 30.0,
 				"wasi.enable": true,
 				"wasi.context": wasi_ctx,
-				"wasi.args": ["drone"],
+				"wasi.args": ["drone", "/js/simple.js"],
+				"wasi.stdout.bindMode": "context",
+				"wasi.stdout.bufferMode": "line",
+				"wasi.stderr.bindMode": "context",
+				"wasi.stderr.bufferMode": "line",
 			},
 		)
 
@@ -138,3 +146,6 @@ func __wasm_write_buffer(p: int, n: int) -> void:
 
 func __wasm_log(p: int, n: int) -> void:
 	print(wasm_instance.memory_read(p, n).get_string_from_utf8())
+
+func __log(msg: String) -> void:
+	print(msg.strip_edges(false, true))

@@ -23,21 +23,12 @@ pub extern "C" fn generate() {
         }
     }
 
-    for (x, z) in (0..CHUNK_SIZE - 1).flat_map(|v| {
-        [
-            (v, 0),
-            (v + 1, CHUNK_SIZE - 1),
-            (0, v + 1),
-            (CHUNK_SIZE - 1, v),
-        ]
-    }) {
-        level.block_entities_mut().add(BlockEntity::new(
-            x,
-            1,
-            z,
-            BlockEntityData::Drone(Drone::new()),
-        ));
-    }
+    level.block_entities_mut().add(BlockEntity::new(
+        1,
+        1,
+        1,
+        BlockEntityData::Drone(Drone::new()),
+    ));
 
     unsafe {
         write(move |buf| {

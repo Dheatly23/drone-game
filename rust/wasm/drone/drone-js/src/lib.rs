@@ -9,7 +9,7 @@ use std::env::args;
 use std::error::Error;
 use std::fmt::{Debug, Display, Formatter, Result as FmtResult, Write as _};
 use std::future::Future;
-use std::mem::swap;
+use std::mem::{replace, swap};
 use std::ops::{Deref, DerefMut};
 use std::path::PathBuf;
 use std::pin::Pin;
@@ -85,7 +85,7 @@ pub extern "C" fn tick() {
 
 fn load_js(path: String) -> JsResult<Context> {
     let mut ctx = Context::builder()
-        .job_queue(Rc::new(JobRunner::new(16)))
+        .job_queue(Rc::new(JobRunner::new(2)))
         .build()?;
 
     // Classes
@@ -375,23 +375,21 @@ impl Level {
         .as_deref()
         {
             Some("noop") => Some(Command::Noop),
-            Some("move") => {
-                match js_str_small(
-                    cmd.get(js_string!("direction"), ctx)?
-                        .try_js_into::<JsString>(ctx)?
-                        .as_str(),
-                )
-                .as_deref()
-                {
-                    Some("up") => Some(Command::Move(Direction::Up)),
-                    Some("down") => Some(Command::Move(Direction::Down)),
-                    Some("left") => Some(Command::Move(Direction::Left)),
-                    Some("right") => Some(Command::Move(Direction::Right)),
-                    Some("forward") => Some(Command::Move(Direction::Forward)),
-                    Some("backward") => Some(Command::Move(Direction::Back)),
-                    _ => None,
-                }
-            }
+            Some("move") => match js_str_small(
+                cmd.get(js_string!("direction"), ctx)?
+                    .try_js_into::<JsString>(ctx)?
+                    .as_str(),
+            )
+            .as_deref()
+            {
+                Some("up") => Some(Command::Move(Direction::Up)),
+                Some("down") => Some(Command::Move(Direction::Down)),
+                Some("left") => Some(Command::Move(Direction::Left)),
+                Some("right") => Some(Command::Move(Direction::Right)),
+                Some("forward") => Some(Command::Move(Direction::Forward)),
+                Some("backward") => Some(Command::Move(Direction::Back)),
+                _ => None,
+            },
             _ => None,
         }
         .ok_or_else(|| js_error!("invalid command"))?;
@@ -404,6 +402,7 @@ impl Level {
                     Some(cmd)
                 },
                 waker: Rc::new(Cell::new(None)),
+                first: true,
             },
             ctx,
         )
@@ -415,6 +414,7 @@ impl Level {
             CommandFuture {
                 cmd: None,
                 waker: Rc::new(Cell::new(None)),
+                first: true,
             },
             ctx,
         )
@@ -678,8 +678,10 @@ impl JobQueue for JobRunner {
         self.jobs.borrow_mut().1.push_back(job);
     }
 
-    fn enqueue_future_job(&self, future: FutureJob, _: &mut Context) {
-        self.executor.register(future);
+    fn enqueue_future_job(&self, future: FutureJob, ctx: &mut Context) {
+        if let Some(job) = self.executor.register(future) {
+            self.enqueue_promise_job(job, ctx);
+        }
     }
 
     fn run_jobs(&self, ctx: &mut Context) {
@@ -722,14 +724,16 @@ unsafe fn write_cmd(cmd: &Command) -> bool {
 struct CommandFuture {
     cmd: Option<Command>,
     waker: Rc<Cell<Option<Waker>>>,
+    first: bool,
 }
 
 impl Future for CommandFuture {
     type Output = JsResult<JsValue>;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut FutContext<'_>) -> Poll<Self::Output> {
-        let Self { cmd, waker } = &mut *self;
+        let Self { cmd, waker, first } = &mut *self;
 
+        let first = replace(first, false);
         let waited = waker.replace(Some(cx.waker().clone())).is_none();
         if waited {
             unsafe { (*(&raw mut WAKERS)).push(waker.clone()) }
@@ -739,7 +743,7 @@ impl Future for CommandFuture {
             if unsafe { write_cmd(v) } {
                 *cmd = None;
             }
-        } else if waited {
+        } else if waited && !first {
             return Poll::Ready(Ok(JsValue::undefined()));
         }
 

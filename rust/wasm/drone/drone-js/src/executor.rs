@@ -41,13 +41,19 @@ impl<O> Executor<O> {
         }
     }
 
-    pub fn register(&self, fut: Pin<Box<dyn Future<Output = O>>>) {
-        self.futures.borrow_mut().push(Entry {
-            fut,
-            flag: Arc::new(SimpleWaker {
-                flag: AtomicBool::new(false),
-            }),
+    pub fn register(&self, mut fut: Pin<Box<dyn Future<Output = O>>>) -> Option<O> {
+        let flag = Arc::new(SimpleWaker {
+            flag: AtomicBool::new(false),
         });
+        if let Poll::Ready(o) = fut
+            .as_mut()
+            .poll(&mut Context::from_waker(&Waker::from(flag.clone())))
+        {
+            return Some(o);
+        }
+
+        self.futures.borrow_mut().push(Entry { fut, flag });
+        None
     }
 
     pub fn run(&self) -> impl '_ + Iterator<Item = O> {
