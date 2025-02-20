@@ -16,6 +16,8 @@ A (WIP) game to demonstrate integrating WebAssembly into Godot.
   - [Nu](https://www.nushell.sh)
 2. Run `git submodule init`.
 3. Go to `rust` directory and run `just profile=release godot-wasm::deploy-addon wasm::deploy deploy`.
+
+   NOTE: `just` modules are currently very broken, so the above command won't work.
 4. Run this project with Godot.
 
 ## License
