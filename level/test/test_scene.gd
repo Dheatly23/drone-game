@@ -81,6 +81,7 @@ func _ready() -> void:
 	wasi_ctx.stdout_emit.connect(__log)
 	wasi_ctx.stderr_emit.connect(__log)
 	wasi_ctx.mount_physical_dir(ProjectSettings.globalize_path("res://js"), "/js")
+	wasi_ctx.fs_readonly = true
 
 	thread.start(thread_fn.bind($Level))
 
