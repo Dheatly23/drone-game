@@ -3,14 +3,13 @@
 mod executor;
 
 use std::cell::{Cell, RefCell};
-use std::collections::hash_map::{Entry, HashMap};
-use std::collections::vec_deque::VecDeque;
+use std::collections::{HashMap, VecDeque};
 use std::env::args;
 use std::error::Error;
 use std::fmt::{Debug, Display, Formatter, Result as FmtResult, Write as _};
 use std::future::Future;
 use std::mem::{replace, swap};
-use std::ops::{Deref, DerefMut};
+use std::ops::Deref;
 use std::path::PathBuf;
 use std::pin::Pin;
 use std::rc::Rc;
@@ -165,6 +164,14 @@ impl Level {
             Attribute::CONFIGURABLE | Attribute::ENUMERABLE,
         );
 
+        let getter = NativeFunction::from_copy_closure(Self::is_initialized)
+            .to_js_function(builder.context().realm());
+        builder.accessor(
+            js_string!("initialized"),
+            Some(getter),
+            None,
+            Attribute::CONFIGURABLE | Attribute::ENUMERABLE,
+        );
         let getter = NativeFunction::from_copy_closure(Self::get_x)
             .to_js_function(builder.context().realm());
         builder.accessor(
@@ -190,6 +197,10 @@ impl Level {
             Attribute::CONFIGURABLE | Attribute::ENUMERABLE,
         );
         builder.build()
+    }
+
+    fn is_initialized(_: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<JsValue> {
+        unsafe { Ok((*(&raw const LEVEL)).is_some().into()) }
     }
 
     fn get_x(_: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<JsValue> {
@@ -220,10 +231,10 @@ impl Level {
     }
 
     fn get_chunk(this: &JsValue, args: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
+        let this = Self::downcast_this(this)?;
         let x = args.get_or_undefined(0).try_js_into::<usize>(ctx)?;
         let y = args.get_or_undefined(1).try_js_into::<usize>(ctx)?;
         let z = args.get_or_undefined(2).try_js_into::<usize>(ctx)?;
-        let mut this = Self::downcast_this(this)?;
 
         let level = unsafe {
             match &*(&raw const LEVEL) {
@@ -251,16 +262,21 @@ impl Level {
                 max: sz,
             }));
         }
-        Ok(match this.chunk_cache.entry([x, y, z]) {
-            Entry::Occupied(v) => v,
-            Entry::Vacant(v) => {
+
+        let k = [x, y, z];
+        let v = this.borrow().data().chunk_cache.get(&k).cloned();
+        Ok(match v {
+            Some(v) => v,
+            None => {
                 let c = Chunk::from_data(Chunk { x, y, z }, ctx)?;
                 c.set_integrity_level(IntegrityLevel::Frozen, ctx)?;
-                v.insert_entry(c)
+                this.borrow_mut()
+                    .data_mut()
+                    .chunk_cache
+                    .insert(k, c.clone());
+                c
             }
         }
-        .get()
-        .clone()
         .into())
     }
 
@@ -421,9 +437,9 @@ impl Level {
         .into())
     }
 
-    fn downcast_this(this: &JsValue) -> JsResult<impl '_ + DerefMut<Target = Self>> {
+    fn downcast_this(this: &JsValue) -> JsResult<JsObject<Self>> {
         if let Some(obj) = this.as_object() {
-            if let Some(ret) = obj.downcast_mut::<Self>() {
+            if let Ok(ret) = obj.clone().downcast::<Self>() {
                 return Ok(ret);
             }
         }

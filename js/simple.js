@@ -1,7 +1,9 @@
 
 (async function () {
     // Wait for initialization
-    await Level.tick();
+    while (!Level.initialized) {
+        await Level.tick();
+    }
 
     while (true) {
         const { x, y, z } = Level.getBlockEntity(Level.uuid);
