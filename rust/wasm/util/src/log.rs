@@ -2,7 +2,7 @@ use std::cell::RefCell;
 use std::fmt::{Display, Write};
 
 #[link(wasm_import_module = "host")]
-extern "C" {
+unsafe extern "C" {
     #[link_name = "log"]
     fn _log(p: *const u8, n: u32);
 }

@@ -3,7 +3,7 @@ use std::ptr::dangling;
 
 use glam::f32::{Vec2, Vec3, Vec4};
 
-use level_state::{Block, LevelState, CHUNK_SIZE};
+use level_state::{Block, CHUNK_SIZE, LevelState};
 use util_wasm::log;
 
 struct Render {

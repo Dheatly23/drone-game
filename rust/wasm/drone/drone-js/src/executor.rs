@@ -1,8 +1,8 @@
 use std::cell::RefCell;
 use std::future::Future;
 use std::pin::Pin;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::task::{Context, Poll, Wake, Waker};
 
 pub struct Executor<O> {
@@ -67,11 +67,10 @@ impl<O> Executor<O> {
 
             fn next(&mut self) -> Option<Self::Item> {
                 loop {
-                    let mut e = {
-                        let mut guard = self.this.futures.borrow_mut();
-                        self.ix = self.ix.min(guard.len()).checked_sub(1)?;
-                        guard.swap_remove(self.ix)
-                    };
+                    let mut guard = self.this.futures.borrow_mut();
+                    self.ix = self.ix.min(guard.len()).checked_sub(1)?;
+                    let mut e = guard.swap_remove(self.ix);
+                    drop(guard);
 
                     if e.flag.flag.swap(false, Ordering::SeqCst) {
                         if let Poll::Ready(o) = e

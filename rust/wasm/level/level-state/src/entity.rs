@@ -4,7 +4,7 @@ use rkyv::with::AsBox;
 use rkyv::{Archive, Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::{Block, LevelState, CHUNK_SIZE};
+use crate::{Block, CHUNK_SIZE, LevelState};
 
 #[derive(Debug, Default, Archive, Serialize, Deserialize)]
 pub struct BlockEntities {

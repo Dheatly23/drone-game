@@ -6,14 +6,14 @@ use rkyv::ser::writer::Buffer;
 use uuid::Uuid;
 
 use level_state::{
-    ArchivedBlockEntity, ArchivedBlockEntityData, ArchivedLevelState, Command, Direction,
-    CHUNK_SIZE,
+    ArchivedBlockEntity, ArchivedBlockEntityData, ArchivedLevelState, CHUNK_SIZE, Command,
+    Direction,
 };
 use util_wasm::{read, write};
 
 static mut UUID: Uuid = Uuid::nil();
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn init(a0: u32, a1: u32, a2: u32, a3: u32) {
     unsafe {
         *(&raw mut UUID) = Uuid::from_u128(
@@ -22,7 +22,7 @@ pub extern "C" fn init(a0: u32, a1: u32, a2: u32, a3: u32) {
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn tick() {
     let level = access::<ArchivedLevelState, Panic>(unsafe { read() }).unwrap();
     let Some(ArchivedBlockEntity {

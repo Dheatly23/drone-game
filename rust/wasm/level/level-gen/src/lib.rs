@@ -2,10 +2,10 @@ use rkyv::api::high::to_bytes_in;
 use rkyv::rancor::Panic;
 use rkyv::ser::writer::Buffer;
 
-use level_state::{Block, BlockEntity, BlockEntityData, Drone, IronOre, LevelState, CHUNK_SIZE};
+use level_state::{Block, BlockEntity, BlockEntityData, CHUNK_SIZE, Drone, IronOre, LevelState};
 use util_wasm::write;
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn generate() {
     let mut level = LevelState::new(16, 16, 16);
 

@@ -7,7 +7,7 @@ use rand_xoshiro::Xoshiro256PlusPlus;
 use uuid::Uuid;
 
 use level_state::{
-    Block, BlockEntity, BlockEntityData, Command, Direction, LevelState, CHUNK_SIZE,
+    Block, BlockEntity, BlockEntityData, CHUNK_SIZE, Command, Direction, LevelState,
 };
 use util_wasm::log;
 

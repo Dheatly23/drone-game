@@ -12,12 +12,12 @@ use rkyv::rancor::{Failure, Panic};
 use rkyv::ser::writer::Buffer;
 use uuid::Uuid;
 
-use level_state::{Block, BlockEntity, BlockEntityData, IronOre, LevelState, CHUNK_SIZE};
+use level_state::{Block, BlockEntity, BlockEntityData, CHUNK_SIZE, IronOre, LevelState};
 use util_wasm::{log, read, write};
 
 use crate::entity::update_entity;
 use crate::process_export::process_to_export;
-use crate::render::{render_chunk, ExportRender};
+use crate::render::{ExportRender, render_chunk};
 use crate::update::update;
 
 static mut LEVEL: LevelState = LevelState::new_empty();

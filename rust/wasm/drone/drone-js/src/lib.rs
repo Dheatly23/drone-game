@@ -22,7 +22,7 @@ use boa_engine::object::builtins::{JsArray, JsPromise};
 use boa_engine::object::{IntegrityLevel, ObjectInitializer};
 use boa_engine::prelude::*;
 use boa_engine::property::Attribute;
-use boa_engine::{js_error, js_string, JsArgs as _, JsResult};
+use boa_engine::{JsArgs as _, JsResult, js_error, js_string};
 use boa_runtime::Console;
 use rkyv::api::high::{access, to_bytes_in};
 use rkyv::rancor::Panic;
@@ -30,7 +30,7 @@ use rkyv::ser::writer::Buffer;
 use uuid::Uuid;
 
 use level_state::{
-    ArchivedBlockEntityData, ArchivedLevelState, Block, Command, Direction, CHUNK_SIZE,
+    ArchivedBlockEntityData, ArchivedLevelState, Block, CHUNK_SIZE, Command, Direction,
 };
 use util_wasm::{read, write_data};
 
@@ -44,7 +44,7 @@ struct BufferData([u8; 256]);
 static mut BUFFER: BufferData = BufferData([0; 256]);
 static mut WRITTEN: bool = true;
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn init(a0: u32, a1: u32, a2: u32, a3: u32) {
     let context;
     unsafe {
@@ -61,7 +61,7 @@ pub extern "C" fn init(a0: u32, a1: u32, a2: u32, a3: u32) {
     *context = Some(load_js(path).unwrap());
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn tick() {
     unsafe {
         *(&raw mut LEVEL) = None;
