@@ -126,7 +126,6 @@ impl BlockEntities {
         src: &Self,
         mut f: impl FnMut(&Uuid, &BlockEntity) -> Option<BlockEntity>,
     ) {
-        self.clear_grave();
         self.data.clear();
         self.data
             .extend(src.entries().filter_map(move |(k, v)| Some((*k, f(k, v)?))));
