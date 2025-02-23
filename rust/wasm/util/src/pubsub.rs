@@ -80,6 +80,8 @@ impl ChannelId {
         let Some(b) = buf.get_mut(..l) else {
             return Err(l);
         };
-        Ok(Some(unsafe { &mut *(b as *mut [MaybeUninit<u8>] as *mut [u8]) }))
+        Ok(Some(unsafe {
+            &mut *(b as *mut [MaybeUninit<u8>] as *mut [u8])
+        }))
     }
 }

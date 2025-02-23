@@ -17,7 +17,7 @@ static mut UUID: Uuid = Uuid::nil();
 pub extern "C" fn init(a0: u32, a1: u32, a2: u32, a3: u32) {
     unsafe {
         *(&raw mut UUID) = Uuid::from_u128(
-            (a0 as u128) | (a1 as u128) << 32 | (a2 as u128) << 64 | (a3 as u128) << 96,
+            (a0 as u128) | ((a1 as u128) << 32) | ((a2 as u128) << 64) | ((a3 as u128) << 96),
         );
     }
 }

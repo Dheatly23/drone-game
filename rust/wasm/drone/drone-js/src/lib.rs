@@ -49,7 +49,7 @@ pub extern "C" fn init(a0: u32, a1: u32, a2: u32, a3: u32) {
     let context;
     unsafe {
         *(&raw mut UUID) = Uuid::from_u128(
-            (a0 as u128) | (a1 as u128) << 32 | (a2 as u128) << 64 | (a3 as u128) << 96,
+            (a0 as u128) | ((a1 as u128) << 32) | ((a2 as u128) << 64) | ((a3 as u128) << 96),
         );
         context = &mut *(&raw mut CONTEXT);
     }
@@ -726,15 +726,17 @@ impl JobQueue for JobRunner {
 }
 
 unsafe fn write_cmd(cmd: &Command) -> bool {
-    let written = &mut *(&raw mut WRITTEN);
-    if *written {
-        return false;
-    }
-    *written = true;
+    unsafe {
+        let written = &mut *(&raw mut WRITTEN);
+        if *written {
+            return false;
+        }
+        *written = true;
 
-    let buffer = to_bytes_in::<_, Panic>(cmd, Buffer::from(&mut *(&raw mut BUFFER.0))).unwrap();
-    write_data(buffer.as_ptr(), buffer.len() as _);
-    true
+        let buffer = to_bytes_in::<_, Panic>(cmd, Buffer::from(&mut *(&raw mut BUFFER.0))).unwrap();
+        write_data(buffer.as_ptr(), buffer.len() as _);
+        true
+    }
 }
 
 struct CommandFuture {
