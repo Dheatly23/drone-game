@@ -14,3 +14,4 @@ optional = true
 buffer = []
 buffer-large = []
 getrandom = ["dep:getrandom"]
+pubsub = []
