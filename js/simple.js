@@ -1,9 +1,36 @@
-
-(async function () {
-    // Wait for initialization
+async function waitForInit() {
     while (!Level.initialized) {
         await Level.tick();
     }
+}
+
+// Simple process subscription loop
+(async function () {
+    await waitForInit();
+
+    while (true) {
+        try {
+            Level.processSubscription();
+        } catch (e) {
+            console.error(e);
+        }
+
+        await Level.tick();
+    }
+})();
+
+(async function () {
+    await waitForInit();
+
+    const id = Level.registerChannel(
+        "test",
+        {
+            publish: true,
+            subscribe: true,
+        },
+        (msg) => console.log(`Received message: ${msg}`),
+    );
+    let t = 0;
 
     while (true) {
         const { x, y, z } = Level.getBlockEntity(Level.uuid);
@@ -30,6 +57,8 @@
             };
         }
 
+        Level.publishChannel(id, `Message: ${t}`);
+        t += 1;
         await Level.submit(cmd);
     }
-})()
+})();
