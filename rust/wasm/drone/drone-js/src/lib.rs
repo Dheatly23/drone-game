@@ -564,12 +564,14 @@ impl Level {
                 .collect::<Vec<_>>();
             let temp = this.temp_buf.clone();
             ctx.enqueue_job(NativeJob::new(move |ctx| {
-                loop {
+                let mut errors = Vec::new();
+
+                'main: loop {
                     let mut guard = temp.borrow_mut();
                     let data = loop {
                         match channel.pop_message(&mut guard[..]) {
                             Ok(Some(v)) => break v,
-                            Ok(None) => return Ok(JsValue::undefined()),
+                            Ok(None) => break 'main,
                             Err(n) => guard.resize_with(n, MaybeUninit::uninit),
                         }
                     };
@@ -582,9 +584,16 @@ impl Level {
                     let this = JsValue::from(ctx.global_object());
                     let args = [data];
                     for f in &funcs {
-                        f.call(&this, &args, ctx)?;
+                        if let Err(e) = f.call(&this, &args, ctx) {
+                            errors.push(e);
+                        }
                     }
                 }
+
+                if !errors.is_empty() {
+                    return Err(JsNativeError::aggregate(errors).into());
+                }
+                Ok(JsValue::undefined())
             }));
         }
 
