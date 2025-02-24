@@ -138,8 +138,7 @@ func __wasm_has_message(i: int) -> int:
 	if i >= len(channels):
 		wasm_instance.signal_error("Channel index out of bounds")
 		return 0
-	var data := channels[i]
-	return 1 if data[&"recv_len"] > 0 else 0
+	return 1 if channels[i][&"recv_len"] > 0 else 0
 
 func __wasm_pop_message(i: int, p: int, n: int) -> int:
 	if i >= len(channels):
@@ -151,7 +150,7 @@ func __wasm_pop_message(i: int, p: int, n: int) -> int:
 	var l: int = data[&"recv_len"]
 	if l == 0:
 		return 0
-	var msg: PackedByteArray = recv[l]
+	var msg: PackedByteArray = recv[l - 1]
 	if n >= len(msg):
 		wasm_instance.memory_write(p, msg)
 		data[&"recv_len"] = l - 1

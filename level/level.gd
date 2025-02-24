@@ -207,7 +207,9 @@ func tick() -> void:
 		t.resize(64)
 		send[k] = t
 		for i in range(len(t)):
-			var j := randi_range(0, len(a))
+			if a.is_empty():
+				break
+			var j := randi_range(0, len(a) - 1)
 			var v: Dictionary = a[j]
 			var d: Dictionary = v["d"]
 			var n: int = v["n"]
@@ -219,14 +221,14 @@ func tick() -> void:
 				v["n"] = n
 
 	for k in recv:
-		var t = send[k]
+		var t = send.get(k)
 		if t is not Array:
 			continue
 		for v in recv[k]:
 			var r = v[&"recv"]
 			var rl: int = v[&"recv_len"]
 			for msg in t:
-				if rl == len(r):
+				if msg == null or rl == len(r):
 					break
 				r[rl] = msg
 				rl += 1
