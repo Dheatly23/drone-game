@@ -24,4 +24,5 @@ workspace = true
 features = [
   "buffer",
   "buffer-large",
+  "pubsub",
 ]

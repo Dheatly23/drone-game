@@ -3,12 +3,13 @@
 mod executor;
 
 use std::cell::{Cell, RefCell};
-use std::collections::{HashMap, VecDeque};
+use std::collections::VecDeque;
+use std::collections::hash_map::{Entry, HashMap};
 use std::env::args;
 use std::error::Error;
 use std::fmt::{Debug, Display, Formatter, Result as FmtResult, Write as _};
 use std::future::Future;
-use std::mem::{replace, swap};
+use std::mem::{MaybeUninit, replace, swap};
 use std::ops::Deref;
 use std::path::PathBuf;
 use std::pin::Pin;
@@ -18,7 +19,7 @@ use std::task::{Context as FutContext, Poll, Waker};
 use arrayvec::ArrayString;
 use boa_engine::class::{Class, ClassBuilder};
 use boa_engine::job::{FutureJob, JobQueue, NativeJob};
-use boa_engine::object::builtins::{JsArray, JsPromise};
+use boa_engine::object::builtins::{JsArray, JsArrayBuffer, JsFunction, JsPromise};
 use boa_engine::object::{IntegrityLevel, ObjectInitializer};
 use boa_engine::prelude::*;
 use boa_engine::property::Attribute;
@@ -32,7 +33,7 @@ use uuid::Uuid;
 use level_state::{
     ArchivedBlockEntityData, ArchivedLevelState, Block, CHUNK_SIZE, Command, Direction,
 };
-use util_wasm::{read, write_data};
+use util_wasm::{ChannelId, read, write_data};
 
 static mut UUID: Uuid = Uuid::nil();
 static mut CONTEXT: Option<Context> = None;
@@ -84,7 +85,7 @@ pub extern "C" fn tick() {
 
 fn load_js(path: String) -> JsResult<Context> {
     let mut ctx = Context::builder()
-        .job_queue(Rc::new(JobRunner::new(2)))
+        .job_queue(Rc::new(JobRunner::new(16)))
         .build()?;
 
     // Classes
@@ -114,15 +115,34 @@ fn js_str_small(s: JsStr<'_>) -> Option<ArrayString<32>> {
     Some(r)
 }
 
+#[derive(Debug, Trace, Finalize)]
+struct SubscriberCb {
+    func: Option<JsFunction>,
+    #[unsafe_ignore_trace]
+    channel: ChannelId,
+}
+
 #[derive(Debug, Trace, JsData, Finalize)]
 struct Level {
     chunk_cache: HashMap<[usize; 3], JsObject>,
+    #[unsafe_ignore_trace]
+    subscribers: HashMap<ChannelId, Vec<i32>>,
+    subscriber_callbacks: HashMap<i32, SubscriberCb>,
+    subscriber_empty: i32,
+
+    #[unsafe_ignore_trace]
+    temp_buf: Rc<RefCell<Vec<MaybeUninit<u8>>>>,
 }
 
 impl Level {
     fn new(_: &mut Context) -> Self {
         Self {
             chunk_cache: HashMap::new(),
+            subscribers: HashMap::new(),
+            subscriber_callbacks: HashMap::new(),
+            subscriber_empty: 0,
+
+            temp_buf: Rc::new(RefCell::new(Vec::new())),
         }
     }
 
@@ -146,6 +166,26 @@ impl Level {
         builder.function(
             NativeFunction::from_copy_closure(Self::get_block_entity_uuids_at),
             js_string!("getBlockEntityUuidsAt"),
+            0,
+        );
+        builder.function(
+            NativeFunction::from_copy_closure(Self::register_channel),
+            js_string!("registerChannel"),
+            0,
+        );
+        builder.function(
+            NativeFunction::from_copy_closure(Self::unregister_channel),
+            js_string!("unregisterChannel"),
+            0,
+        );
+        builder.function(
+            NativeFunction::from_copy_closure(Self::publish),
+            js_string!("publishChannel"),
+            0,
+        );
+        builder.function(
+            NativeFunction::from_copy_closure(Self::process_subscription),
+            js_string!("processSubscription"),
             0,
         );
         builder.function(
@@ -378,6 +418,177 @@ impl Level {
         }
 
         Ok(builder.build().into())
+    }
+
+    fn to_vec_u8(value: &JsValue) -> JsResult<Vec<u8>> {
+        match value {
+            JsValue::Object(o) => Ok(match JsArrayBuffer::from_object(o.clone())?.data() {
+                Some(v) => Vec::from(&*v),
+                None => Vec::new(),
+            }),
+            JsValue::String(s) => Ok(s.to_std_string_lossy().into()),
+            _ => Err(JsNativeError::typ()
+                .with_message("cannot represent argument as Vec<u8>")
+                .into()),
+        }
+    }
+
+    fn register_channel(this: &JsValue, args: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
+        let this = Self::downcast_this(this)?;
+        let key = Self::to_vec_u8(args.get_or_undefined(0))?;
+        let flags = args
+            .get_or_undefined(1)
+            .try_js_into::<Option<JsObject>>(ctx)?;
+
+        let channel = match flags {
+            Some(f) => ChannelId::create(
+                &key,
+                f.get(js_str!("publish"), ctx)?
+                    .try_js_into::<Option<bool>>(ctx)?
+                    .unwrap_or_default(),
+                f.get(js_str!("subscribe"), ctx)?
+                    .try_js_into::<Option<bool>>(ctx)?
+                    .unwrap_or_default(),
+            ),
+            None => ChannelId::create(&key, false, false),
+        };
+        drop(key);
+
+        {
+            let mut this = this.borrow_mut();
+            let this = &mut *this.data_mut();
+
+            let entry = this.subscribers.entry(channel.clone());
+            entry.key().merge(&channel);
+
+            let ids = entry.or_default();
+            let func = if channel.is_subscribe() {
+                Some(args.get_or_undefined(2).try_js_into::<JsFunction>(ctx)?)
+            } else {
+                None
+            };
+
+            for _ in 0..u32::MAX {
+                let k = this.subscriber_empty;
+                this.subscriber_empty = this.subscriber_empty.wrapping_add(1);
+                let Entry::Vacant(e) = this.subscriber_callbacks.entry(k) else {
+                    continue;
+                };
+                e.insert(SubscriberCb { func, channel });
+                ids.push(k);
+                return Ok(k.into());
+            }
+        }
+
+        Err(JsNativeError::error()
+            .with_message("cannot register function, index is full")
+            .into())
+    }
+
+    fn unregister_channel(
+        this: &JsValue,
+        args: &[JsValue],
+        ctx: &mut Context,
+    ) -> JsResult<JsValue> {
+        let this = Self::downcast_this(this)?;
+        let key = args.get_or_undefined(0).try_js_into::<i32>(ctx)?;
+
+        let mut this = this.borrow_mut();
+        let this = &mut *this.data_mut();
+        let Some(v) = this
+            .subscriber_callbacks
+            .remove_entry(&key)
+            .and_then(|(_, v)| {
+                v.func.as_ref()?;
+                this.subscribers.get_mut(&v.channel)
+            })
+        else {
+            return Err(JsNativeError::error()
+                .with_message("channel does not exist")
+                .into());
+        };
+        if let Some(i) = v
+            .iter()
+            .enumerate()
+            .find_map(|(i, &v)| if v == key { Some(i) } else { None })
+        {
+            v.swap_remove(i);
+        }
+
+        Ok(JsValue::undefined())
+    }
+
+    fn publish(this: &JsValue, args: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
+        let this = Self::downcast_this(this)?;
+        let key = args.get_or_undefined(0).try_js_into::<i32>(ctx)?;
+        let msg = Self::to_vec_u8(args.get_or_undefined(1))?;
+
+        {
+            let mut this = this.borrow_mut();
+            let this = &mut *this.data_mut();
+
+            let Some((c, _)) = this
+                .subscriber_callbacks
+                .get(&key)
+                .and_then(|k| this.subscribers.get_key_value(&k.channel))
+            else {
+                return Err(JsNativeError::error()
+                    .with_message("channel does not exist")
+                    .into());
+            };
+            if !c.is_publish() {
+                return Err(JsNativeError::typ()
+                    .with_message("channel is not publishable")
+                    .into());
+            }
+            c.publish(&msg);
+        }
+
+        Ok(JsValue::undefined())
+    }
+
+    fn process_subscription(this: &JsValue, _: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
+        let this = Self::downcast_this(this)?;
+        let this = this.borrow();
+        let this = this.data();
+
+        for (k, v) in &this.subscribers {
+            if !k.is_subscribe() || !k.has_message() {
+                continue;
+            }
+
+            let channel = k.clone();
+            let funcs = v
+                .iter()
+                .filter_map(|k| this.subscriber_callbacks.get(k)?.func.clone())
+                .collect::<Vec<_>>();
+            let temp = this.temp_buf.clone();
+            ctx.enqueue_job(NativeJob::new(move |ctx| {
+                loop {
+                    let mut guard = temp.borrow_mut();
+                    let data = loop {
+                        match channel.pop_message(&mut guard[..]) {
+                            Ok(Some(v)) => break v,
+                            Ok(None) => return Ok(JsValue::undefined()),
+                            Err(n) => guard.resize_with(n, MaybeUninit::uninit),
+                        }
+                    };
+                    let data: JsValue = match String::from_utf8(data.to_owned()) {
+                        Ok(v) => JsString::from(&*v).into(),
+                        Err(e) => JsArrayBuffer::from_byte_block(e.into_bytes(), ctx)?.into(),
+                    };
+                    drop(guard);
+
+                    let this = JsValue::from(ctx.global_object());
+                    let args = [data];
+                    for f in &funcs {
+                        f.call(&this, &args, ctx)?;
+                    }
+                }
+            }));
+        }
+
+        Ok(JsValue::undefined())
     }
 
     fn submit(_: &JsValue, args: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {

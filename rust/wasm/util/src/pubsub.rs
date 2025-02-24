@@ -1,4 +1,7 @@
+use std::cell::Cell;
+use std::cmp::{Eq, PartialEq};
 use std::fmt::{Debug, Display, Formatter, Result as FmtResult};
+use std::hash::{Hash, Hasher};
 use std::mem::MaybeUninit;
 
 #[link(wasm_import_module = "host")]
@@ -16,10 +19,24 @@ unsafe extern "C" {
 const FLAG_PUBLISH: u32 = 1;
 const FLAG_SUBSCRIBE: u32 = 2;
 
-#[derive(Clone, Copy, Eq, PartialEq, Hash)]
+#[derive(Clone)]
 pub struct ChannelId {
     id: u32,
-    flags: u32,
+    flags: Cell<u32>,
+}
+
+impl PartialEq for ChannelId {
+    fn eq(&self, rhs: &Self) -> bool {
+        self.id.eq(&rhs.id)
+    }
+}
+
+impl Eq for ChannelId {}
+
+impl Hash for ChannelId {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.id.hash(state);
+    }
 }
 
 impl Display for ChannelId {
@@ -31,8 +48,8 @@ impl Display for ChannelId {
 impl Debug for ChannelId {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         f.debug_struct("ChannelId")
-            .field("publish", &(self.flags & FLAG_PUBLISH != 0))
-            .field("subscribe", &(self.flags & FLAG_SUBSCRIBE != 0))
+            .field("publish", &(self.is_publish()))
+            .field("subscribe", &(self.is_subscribe()))
             .finish_non_exhaustive()
     }
 }
@@ -42,19 +59,23 @@ impl ChannelId {
         let flags =
             if publish { FLAG_PUBLISH } else { 0 } | if subscribe { FLAG_SUBSCRIBE } else { 0 };
         Self {
-            flags,
+            flags: Cell::new(flags),
             id: unsafe { _create_channel(key.as_ptr(), key.len() as _, flags) },
         }
     }
 
     #[inline(always)]
     pub fn is_publish(&self) -> bool {
-        self.flags & FLAG_PUBLISH != 0
+        self.flags.get() & FLAG_PUBLISH != 0
     }
 
     #[inline(always)]
     pub fn is_subscribe(&self) -> bool {
-        self.flags & FLAG_SUBSCRIBE != 0
+        self.flags.get() & FLAG_SUBSCRIBE != 0
+    }
+
+    pub fn merge(&self, other: &Self) {
+        self.flags.set(self.flags.get() | other.flags.get());
     }
 
     pub fn publish(&self, data: &[u8]) {
