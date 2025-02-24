@@ -184,6 +184,54 @@ func tick() -> void:
 	update_chunks.call_deferred()
 	mutex.unlock()
 
+	# Transfer pubsub
+	var send := {}
+	var recv := {}
+	for n in drones:
+		var channel_ids: Dictionary = n.channel_ids
+		var channels = n.channels
+		for k in channel_ids:
+			var d: Dictionary = channels[channel_ids[k]]
+			var flag: int = d[&"flag"]
+			if flag & 1 != 0 and d[&"send_len"] > 0:
+				send.get_or_add(k, []).push_back({
+					d = d,
+					n = 0,
+				})
+			if flag & 2 != 0 and d[&"recv_len"] < 64:
+				recv.get_or_add(k, []).push_back(d)
+
+	for k in send:
+		var a: Array = send[k]
+		var t := []
+		t.resize(64)
+		send[k] = t
+		for i in range(len(t)):
+			var j := randi_range(0, len(a))
+			var v: Dictionary = a[j]
+			var d: Dictionary = v["d"]
+			var n: int = v["n"]
+			t[i] = d[&"send"][n]
+			n += 1
+			if n == d[&"send_len"]:
+				a.remove_at(j)
+			else:
+				v["n"] = n
+
+	for k in recv:
+		var t = send[k]
+		if t is not Array:
+			continue
+		for v in recv[k]:
+			var r = v[&"recv"]
+			var rl: int = v[&"recv_len"]
+			for msg in t:
+				if rl == len(r):
+					break
+				r[rl] = msg
+				rl += 1
+			v[&"recv_len"] = rl
+
 	var end := Time.get_ticks_usec()
 	#print("Tick: %.3f" % ((end - start) / 1000.0))
 

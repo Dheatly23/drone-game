@@ -5,6 +5,9 @@ extends Node3D
 var wasm_instance: WasmInstance
 var buffer_data := PackedByteArray()
 
+var channel_ids := {}
+var channels: Array[Dictionary] = []
+
 func initialize_wasm(module: WasmModule, config: Dictionary) -> void:
 	wasm_instance = WasmInstance.new().initialize(
 		module,
@@ -25,6 +28,26 @@ func initialize_wasm(module: WasmModule, config: Dictionary) -> void:
 					results = [],
 					callable = __wasm_write_buffer,
 				},
+				"create_channel": {
+					params = [WasmHelper.TYPE_I32, WasmHelper.TYPE_I32, WasmHelper.TYPE_I32],
+					results = [WasmHelper.TYPE_I32],
+					callable = __wasm_create_channel,
+				},
+				"publish_message": {
+					params = [WasmHelper.TYPE_I32, WasmHelper.TYPE_I32, WasmHelper.TYPE_I32],
+					results = [],
+					callable = __wasm_publish_message,
+				},
+				"has_message": {
+					params = [WasmHelper.TYPE_I32],
+					results = [WasmHelper.TYPE_I32],
+					callable = __wasm_has_message,
+				},
+				"pop_message": {
+					params = [WasmHelper.TYPE_I32, WasmHelper.TYPE_I32, WasmHelper.TYPE_I32],
+					results = [WasmHelper.TYPE_I32],
+					callable = __wasm_pop_message,
+				},
 			},
 		},
 		config,
@@ -43,6 +66,10 @@ func update_data(data: Dictionary) -> void:
 	position = Vector3(data["coord"])
 
 func tick(level_data: PackedByteArray) -> PackedByteArray:
+	for v in channels:
+		v[&"send"].fill(null)
+		v[&"send_len"] = 0
+
 	if wasm_instance != null:
 		buffer_data = level_data
 		wasm_instance.call_wasm(&"tick", [])
@@ -65,3 +92,68 @@ func __wasm_write_buffer(p: int, n: int) -> void:
 
 func __wasm_log(p: int, n: int) -> void:
 	print(wasm_instance.memory_read(p, n).get_string_from_utf8())
+
+func __wasm_create_channel(p: int, n: int, flag: int) -> int:
+	var chan_name := wasm_instance.memory_read(p, n)
+	var i = channel_ids.get(chan_name)
+	var data: Dictionary
+	if i == null:
+		i = len(channels)
+		var recv := []
+		var send := []
+		recv.resize(64)
+		send.resize(64)
+		data = {
+			&"name": chan_name,
+			&"flag": flag,
+			&"recv": recv,
+			&"recv_len": 0,
+			&"send": send,
+			&"send_len": 0,
+		}
+		channels.push_back(data)
+		channel_ids[chan_name] = i
+	else:
+		data = channels[i]
+		data[&"flag"] = data[&"flag"] | flag
+
+	return i
+
+func __wasm_publish_message(i: int, p: int, n: int) -> void:
+	if i >= len(channels):
+		wasm_instance.signal_error("Channel index out of bounds")
+		return
+	var data := channels[i]
+	if data[&"flag"] & 1 == 0:
+		push_warning("Channel %d is not publishable!" % i)
+		return
+
+	var send: Array = data[&"send"]
+	var l: int = data[&"send_len"]
+	if l < len(send):
+		send[l] = wasm_instance.memory_read(p, n)
+		data[&"send_len"] = l + 1
+
+func __wasm_has_message(i: int) -> int:
+	if i >= len(channels):
+		wasm_instance.signal_error("Channel index out of bounds")
+		return 0
+	var data := channels[i]
+	return 1 if data[&"recv_len"] > 0 else 0
+
+func __wasm_pop_message(i: int, p: int, n: int) -> int:
+	if i >= len(channels):
+		wasm_instance.signal_error("Channel index out of bounds")
+		return 0
+	var data := channels[i]
+
+	var recv: Array = data[&"recv"]
+	var l: int = data[&"recv_len"]
+	if l == 0:
+		return 0
+	var msg: PackedByteArray = recv[l]
+	if n >= len(msg):
+		wasm_instance.memory_write(p, msg)
+		data[&"recv_len"] = l - 1
+		recv[l] = null
+	return len(msg)
