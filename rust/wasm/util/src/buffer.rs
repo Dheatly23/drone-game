@@ -13,7 +13,7 @@ const BUF_LEN: usize = if cfg!(feature = "buffer-large") {
 } else {
     1024 * 1024
 };
-#[repr(C, align(65536))]
+#[repr(C, align(16))]
 struct StaticBuffer([u8; BUF_LEN]);
 static mut BUFFER: StaticBuffer = StaticBuffer([0; BUF_LEN]);
 
@@ -26,11 +26,12 @@ pub unsafe fn read() -> &'static [u8] {
 
 pub unsafe fn write(f: impl FnOnce(&mut [MaybeUninit<u8>]) -> usize) {
     unsafe {
-        let l = f(&mut *((&raw mut BUFFER.0) as *mut [u8] as *mut [MaybeUninit<u8>]));
+        let l = f(buffer());
+        assert!(l <= BUF_LEN);
         write_data((&raw const BUFFER.0) as _, l as _);
     }
 }
 
-pub unsafe fn buffer<'a>() -> &'a mut [u8] {
-    unsafe { &mut *(&raw mut BUFFER.0[..]) }
+pub unsafe fn buffer<'a>() -> &'a mut [MaybeUninit<u8>] {
+    unsafe { &mut *((&raw mut BUFFER.0[..]) as *mut [u8] as *mut [MaybeUninit<u8>]) }
 }
