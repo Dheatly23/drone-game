@@ -1,17 +1,68 @@
 use std::iter::repeat;
-use std::ptr::dangling;
+use std::marker::PhantomData;
+use std::mem::{MaybeUninit, size_of};
+use std::ptr::{dangling, write_unaligned};
 
 use glam::f32::{Vec2, Vec3, Vec4};
 
 use level_state::{Block, CHUNK_SIZE, LevelState};
-use util_wasm::log;
+use util_wasm::buffer;
 
-struct Render {
-    vertex: Vec<Vec3>,
-    normal: Vec<Vec3>,
-    tangent: Vec<Vec4>,
-    uv: Vec<Vec2>,
-    index: Vec<u32>,
+struct WriteBuf<'a, T> {
+    buf: &'a mut [MaybeUninit<u8>],
+    n: usize,
+    _phantom: PhantomData<T>,
+}
+
+impl<'a, T> WriteBuf<'a, T> {
+    const fn new(buf: &'a mut [MaybeUninit<u8>]) -> Self {
+        Self {
+            buf,
+            n: 0,
+            _phantom: PhantomData,
+        }
+    }
+
+    fn len(&self) -> usize {
+        self.n
+    }
+
+    fn as_ptr(&self) -> *const T {
+        self.buf as *const [MaybeUninit<u8>] as *const T
+    }
+
+    fn push(&mut self, value: T) {
+        let size = size_of::<T>();
+        let off = self.n * size;
+        self.n += 1;
+
+        if size == 0 {
+            return;
+        }
+
+        unsafe {
+            write_unaligned(&raw mut self.buf[off..off + size] as *mut T, value);
+        }
+    }
+}
+
+impl<T> Extend<T> for WriteBuf<'_, T> {
+    fn extend<It>(&mut self, it: It)
+    where
+        It: IntoIterator<Item = T>,
+    {
+        for v in it {
+            self.push(v);
+        }
+    }
+}
+
+struct Render<'a> {
+    vertex: WriteBuf<'a, Vec3>,
+    normal: WriteBuf<'a, Vec3>,
+    tangent: WriteBuf<'a, Vec4>,
+    uv: WriteBuf<'a, Vec2>,
+    index: WriteBuf<'a, u32>,
 }
 
 #[repr(C)]
@@ -26,53 +77,71 @@ pub struct ExportRender {
     index_ptr: *const u32,
 }
 
-static mut RENDER: Render = Render {
-    vertex: Vec::new(),
-    normal: Vec::new(),
-    tangent: Vec::new(),
-    uv: Vec::new(),
-    index: Vec::new(),
-};
-static mut EXPORT_RENDER: ExportRender = ExportRender {
-    dirty: 0,
-    attr_len: 0,
-    index_len: 0,
-    vertex_ptr: dangling(),
-    normal_ptr: dangling(),
-    tangent_ptr: dangling(),
-    uv_ptr: dangling(),
-    index_ptr: dangling(),
-};
+fn split_write_buffer<T: std::fmt::Debug>(
+    buf: &mut [MaybeUninit<u8>],
+) -> (WriteBuf<'_, T>, &mut [MaybeUninit<u8>]) {
+    let (a, b) = buf.split_at_mut(1024 * 1024);
+    (WriteBuf::new(a), b)
+}
+
+unsafe fn write_export_render(
+    buf: &mut [MaybeUninit<u8>],
+    data: ExportRender,
+) -> *const ExportRender {
+    let size = size_of_val(&data);
+    assert_ne!(size, 0);
+    let buf = &mut buf[..size];
+    unsafe {
+        write_unaligned(buf as *mut [MaybeUninit<u8>] as *mut ExportRender, data);
+    }
+
+    buf[0].as_ptr() as _
+}
 
 pub fn render_chunk(level: &mut LevelState, x: usize, y: usize, z: usize) -> *const ExportRender {
-    log(format_args!("coord: {x} {y} {z}"));
-    let (render, export) = unsafe { (&mut *(&raw mut RENDER), &mut *(&raw mut EXPORT_RENDER)) };
+    //log(format_args!("coord: {x} {y} {z}"));
+    let buf = unsafe { buffer() };
+    let (vertex, buf) = split_write_buffer::<Vec3>(buf);
+    let (normal, buf) = split_write_buffer::<Vec3>(buf);
+    let (tangent, buf) = split_write_buffer::<Vec4>(buf);
+    let (uv, buf) = split_write_buffer::<Vec2>(buf);
+    let (index, buf) = split_write_buffer::<u32>(buf);
+    let mut render = Render {
+        vertex,
+        normal,
+        tangent,
+        uv,
+        index,
+    };
+    let mut export = ExportRender {
+        dirty: 0,
+        attr_len: 0,
+        index_len: 0,
+        vertex_ptr: dangling(),
+        normal_ptr: dangling(),
+        tangent_ptr: dangling(),
+        uv_ptr: dangling(),
+        index_ptr: dangling(),
+    };
 
     let (sx, sy, sz) = level.chunk_size();
-    log(format_args!("size: {sx} {sy} {sz}"));
+    //log(format_args!("size: {sx} {sy} {sz}"));
     if x >= sx || y >= sy || z >= sz {
         panic!("Index overflow");
     }
     let i = (y * sz + z) * sx + x;
+    /*
     log(format_args!(
         "index: {i} chunks len: {}",
         level.chunks_mut().len()
     ));
+    */
     let c = &mut level.chunks_mut()[i];
     if !c.is_dirty() {
-        export.dirty = 0;
-        export.attr_len = 0;
-        export.index_len = 0;
-        return export;
+        unsafe { return write_export_render(buf, export) }
     }
     c.mark_clean();
     let c = &level.chunks()[i];
-
-    render.vertex.clear();
-    render.normal.clear();
-    render.tangent.clear();
-    render.uv.clear();
-    render.index.clear();
 
     let cl = if x < sx - 1 {
         Some(&level.chunks()[i + 1])
@@ -112,7 +181,7 @@ pub fn render_chunk(level: &mut LevelState, x: usize, y: usize, z: usize) -> *co
         let coord = Vec3::new(x as _, y as _, z as _);
         match r {
             RenderType::Block { uv, duv } => draw_block(
-                render,
+                &mut render,
                 coord,
                 uv,
                 duv,
@@ -183,7 +252,7 @@ pub fn render_chunk(level: &mut LevelState, x: usize, y: usize, z: usize) -> *co
     export.uv_ptr = render.uv.as_ptr();
     export.index_ptr = render.index.as_ptr();
 
-    export
+    unsafe { write_export_render(buf, export) }
 }
 
 fn draw_block(this: &mut Render, c: Vec3, uv: Vec2, duv: Vec2, b: [bool; 6]) {

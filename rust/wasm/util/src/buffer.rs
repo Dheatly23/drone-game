@@ -33,5 +33,5 @@ pub unsafe fn write(f: impl FnOnce(&mut [MaybeUninit<u8>]) -> usize) {
 }
 
 pub unsafe fn buffer<'a>() -> &'a mut [MaybeUninit<u8>] {
-    unsafe { &mut *((&raw mut BUFFER.0[..]) as *mut [u8] as *mut [MaybeUninit<u8>]) }
+    unsafe { &mut *((&raw mut BUFFER.0[..]) as *mut [MaybeUninit<u8>]) }
 }

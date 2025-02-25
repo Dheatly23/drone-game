@@ -13,7 +13,7 @@ use rkyv::ser::writer::Buffer;
 use uuid::Uuid;
 
 use level_state::{Block, BlockEntity, BlockEntityData, CHUNK_SIZE, IronOre, LevelState};
-use util_wasm::{log, read, write};
+use util_wasm::{read, write};
 
 use crate::entity::update_entity;
 use crate::process_export::process_to_export;
@@ -71,7 +71,7 @@ pub extern "C" fn import() {
 
     let mut prev = None;
     for (c @ (x, y, z), id, b) in v {
-        log(format_args!("{id}: {x} {y} {z}"));
+        //log(format_args!("{id}: {x} {y} {z}"));
         if x >= sx || y >= sy || z >= sz || replace(&mut prev, Some(c)).is_some_and(|p| c == p) {
             level.block_entities_mut().remove(&id);
             continue;
@@ -154,7 +154,7 @@ pub extern "C" fn set_command(a0: u32, a1: u32, a2: u32, a3: u32) {
             return;
         };
         if let Ok(v) = from_bytes::<_, Failure>(read()) {
-            log(format_args!("{id} {v:?}"));
+            //log(format_args!("{id} {v:?}"));
             d.command = v;
         }
     }
