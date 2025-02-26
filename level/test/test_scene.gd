@@ -3,79 +3,14 @@ extends Node3D
 @export var level_gen: WasmModule
 @export_range(0.01, 1000.0, 0.01) var tick_delay := 1.0
 
-var thread := Thread.new()
-var sema := Semaphore.new()
-var mutex := Mutex.new()
-var work_msg := "none"
+var thread: Thread = null
 
 var time_acc := 0.0
-var ticking := false
 
 var wasi_ctx := WasiContext.new().initialize({})
 var wasm_instance: WasmInstance
 var buffer_data := PackedByteArray()
 var crypto := Crypto.new()
-
-func thread_fn(level) -> void:
-	if level_gen != null:
-		var start := Time.get_ticks_usec()
-		wasm_instance = WasmInstance.new().initialize(
-			level_gen,
-			{
-				"host": {
-					"random": {
-						params = [WasmHelper.TYPE_I32, WasmHelper.TYPE_I32],
-						results = [],
-						callable = __wasm_random,
-					},
-					"log": {
-						params = [WasmHelper.TYPE_I32, WasmHelper.TYPE_I32],
-						results = [],
-						callable = __wasm_log,
-					},
-					"read_data": {
-						params = [WasmHelper.TYPE_I32, WasmHelper.TYPE_I64],
-						results = [WasmHelper.TYPE_I64],
-						callable = __wasm_read_buffer,
-					},
-					"write_data": {
-						params = [WasmHelper.TYPE_I32, WasmHelper.TYPE_I64],
-						results = [],
-						callable = __wasm_write_buffer,
-					},
-				},
-			},
-			{
-				"epoch.enable": true,
-				"epoch.timeout": 30.0,
-			},
-		)
-
-		wasm_instance.call_wasm(&"generate", [])
-
-		var end := Time.get_ticks_usec()
-		print("Done generating in %f seconds" % ((end - start) / 1e6))
-
-		level.import_level.call_deferred(buffer_data)
-		buffer_data = PackedByteArray()
-		wasm_instance = null
-
-	else:
-		level.init_empty()
-
-	while true:
-		sema.wait()
-		mutex.lock()
-		var msg := work_msg
-		work_msg = ""
-		mutex.unlock()
-
-		match msg:
-			"tick":
-				level.tick()
-			"quit":
-				print("Worker thread done!")
-				return
 
 func _ready() -> void:
 	wasi_ctx.stdout_emit.connect(__log)
@@ -83,29 +18,66 @@ func _ready() -> void:
 	wasi_ctx.mount_physical_dir(ProjectSettings.globalize_path("res://js"), "/js")
 	wasi_ctx.fs_readonly = true
 
-	thread.start(thread_fn.bind($Level))
+	var level := $Level
+
+	if level_gen != null:
+		var c := func():
+			var start := Time.get_ticks_usec()
+			wasm_instance = WasmInstance.new().initialize(
+				level_gen,
+				{
+					"host": {
+						"random": {
+							params = [WasmHelper.TYPE_I32, WasmHelper.TYPE_I32],
+							results = [],
+							callable = __wasm_random,
+						},
+						"log": {
+							params = [WasmHelper.TYPE_I32, WasmHelper.TYPE_I32],
+							results = [],
+							callable = __wasm_log,
+						},
+						"read_data": {
+							params = [WasmHelper.TYPE_I32, WasmHelper.TYPE_I64],
+							results = [WasmHelper.TYPE_I64],
+							callable = __wasm_read_buffer,
+						},
+						"write_data": {
+							params = [WasmHelper.TYPE_I32, WasmHelper.TYPE_I64],
+							results = [],
+							callable = __wasm_write_buffer,
+						},
+					},
+				},
+				{
+					"epoch.enable": true,
+					"epoch.timeout": 30.0,
+				},
+			)
+
+			wasm_instance.call_wasm(&"generate", [])
+
+			var end := Time.get_ticks_usec()
+			print("Done generating in %f seconds" % ((end - start) / 1e6))
+
+			level.import_level.call_deferred(buffer_data)
+			buffer_data = PackedByteArray()
+			wasm_instance = null
+
+		thread = Thread.new()
+		thread.start(c)
+
+	else:
+		level.init_empty()
 
 func _process(delta: float) -> void:
 	time_acc += delta
-	if time_acc >= tick_delay and not ticking:
-		ticking = true
-		__send_msg("tick")
+	if time_acc >= tick_delay and (thread == null or not thread.is_alive()) and $Level.tick():
 		time_acc = 0.0
 
 func _exit_tree() -> void:
-	if thread.is_started():
-		__send_msg("quit")
+	if thread != null:
 		thread.wait_to_finish()
-
-func __send_msg(msg: String) -> void:
-	mutex.lock()
-	work_msg = msg
-	mutex.unlock()
-	sema.post()
-	#print("Send: %s" % msg)
-
-func __chunks_updated() -> void:
-	ticking = false
 
 func __level_inited() -> void:
 	# Load WASM module to drone
@@ -150,3 +122,6 @@ func __wasm_log(p: int, n: int) -> void:
 
 func __log(msg: String) -> void:
 	print(msg.strip_edges(false, true))
+
+func __tick_processed(time: float) -> void:
+	$HUD/TopLeft/Grid/Tick.text = "Tick provessed: %.3f ms" % (time * 1e3)

@@ -9,8 +9,8 @@ use uuid::Uuid;
 
 use crate::{Block, CHUNK_SIZE, LevelState};
 
-#[derive(Clone, Copy, Debug, Default)]
-struct BlockEntityHasher;
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub struct BlockEntityHasher;
 
 impl BuildHasher for BlockEntityHasher {
     type Hasher = FxHasher64;

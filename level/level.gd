@@ -1,16 +1,17 @@
 extends Node3D
+class_name Level
 
 signal chunks_updated()
 signal initialized()
+signal tick_processed(time: float)
 
-@export var wasm_module: WasmModule = null
 @export_group("Chunk Size")
 @export_range(1, 64) var chunk_size_x := 1
 @export_range(1, 64) var chunk_size_y := 1
 @export_range(1, 64) var chunk_size_z := 1
 
 @onready var wasm_instance := WasmInstance.new().initialize(
-	wasm_module,
+	preload("res://wasm/level_controller.wasm"),
 	{
 		"host": {
 			"random": {
@@ -77,6 +78,7 @@ signal initialized()
 		"epoch.timeout": 5.0,
 	},
 )
+@onready var level_query := $Query
 
 var chunks := {}
 var block_entities := {}
@@ -84,6 +86,20 @@ var block_entities := {}
 var buffer_data := PackedByteArray()
 var crypto := Crypto.new()
 var mutex := Mutex.new()
+var thread: Thread = null
+
+var level_data := PackedByteArray()
+
+var __work_mutex := Mutex.new()
+var __sema := Semaphore.new()
+var __quitting := false
+var __ticking := false
+
+func _ready() -> void:
+	$Query.crypto = crypto
+
+func _exit_tree() -> void:
+	__shutdown_thread()
 
 func init_chunks() -> void:
 	var old_size := Vector3i(chunk_size_x, chunk_size_y, chunk_size_z)
@@ -127,39 +143,75 @@ func init_chunks() -> void:
 
 func update_chunks(init: bool = false) -> void:
 	mutex.lock()
+	if init:
+		buffer_data = PackedByteArray()
+		wasm_instance.call_wasm(&"export_censored", [])
+		level_data = buffer_data
+		buffer_data = PackedByteArray()
 	wasm_instance.call_wasm(&"entity_update", [])
-	mutex.unlock()
 
 	for k in chunks:
-		mutex.lock()
 		chunks[k].update_chunk()
-		mutex.unlock()
+
+	mutex.unlock()
+	__work_mutex.lock()
+	__ticking = false
+	__work_mutex.unlock()
 
 	if init:
 		initialized.emit()
 	chunks_updated.emit()
 
 func init_empty() -> void:
+	__shutdown_thread()
+
 	mutex.lock()
 	wasm_instance.call_wasm(&"init", [chunk_size_x, chunk_size_y, chunk_size_z])
 	mutex.unlock()
 	init_chunks()
 
 func import_level(data: PackedByteArray) -> void:
+	__shutdown_thread()
+
 	mutex.lock()
 	buffer_data = data
 	wasm_instance.call_wasm(&"import", [])
 	mutex.unlock()
 	init_chunks()
 
-func tick() -> void:
-	var start := Time.get_ticks_usec()
+func tick() -> bool:
+	__work_mutex.lock()
 
-	# Get level data
-	mutex.lock()
-	buffer_data = PackedByteArray()
-	wasm_instance.call_wasm(&"export_censored", [])
-	mutex.unlock()
+	if thread == null:
+		__quitting = false
+		__ticking = false
+		thread = Thread.new()
+		thread.start(__thread_fn)
+
+	if __ticking:
+		__work_mutex.unlock()
+		return false
+
+	__ticking = true
+	__work_mutex.unlock()
+	__sema.post()
+	return true
+
+func __thread_fn() -> void:
+	while true:
+		__sema.wait()
+		__work_mutex.lock()
+		if __quitting:
+			__work_mutex.unlock()
+			return
+		elif __ticking:
+			__work_mutex.unlock()
+			__tick_fn()
+			continue
+		__work_mutex.unlock()
+
+func __tick_fn() -> void:
+	var start := Time.get_ticks_usec()
 
 	# Gather commands
 	var drones := []
@@ -169,8 +221,11 @@ func tick() -> void:
 			continue
 		drones.push_back(v["node"])
 
+	mutex.lock()
+	var c := __drone_work.bind(drones, level_data)
+	mutex.unlock()
 	var group_id := WorkerThreadPool.add_group_task(
-		__drone_work.bind(drones, buffer_data),
+		c,
 		len(drones),
 		-1,
 		false,
@@ -181,7 +236,14 @@ func tick() -> void:
 	# Tick
 	mutex.lock()
 	wasm_instance.call_wasm(&"tick", [])
-	update_chunks.call_deferred()
+	buffer_data = PackedByteArray()
+	wasm_instance.call_wasm(&"export", [])
+	var uncen := buffer_data
+	buffer_data = PackedByteArray()
+	wasm_instance.call_wasm(&"export_censored", [])
+	var cen := buffer_data
+	__tick_main.call_deferred(uncen, cen)
+	buffer_data = PackedByteArray()
 	mutex.unlock()
 
 	# Transfer pubsub
@@ -235,7 +297,7 @@ func tick() -> void:
 			v[&"recv_len"] = rl
 
 	var end := Time.get_ticks_usec()
-	#print("Tick: %.3f" % ((end - start) / 1000.0))
+	tick_processed.emit.call_deferred((end - start) * 1e-6)
 
 func __drone_work(ix, drones: Array, data: PackedByteArray) -> void:
 	var n = drones[ix]
@@ -246,6 +308,20 @@ func __drone_work(ix, drones: Array, data: PackedByteArray) -> void:
 	wasm_instance.call_wasm(&"set_command", [uuid.x, uuid.y, uuid.z, uuid.w])
 	buffer_data = PackedByteArray()
 	mutex.unlock()
+
+func __tick_main(data: PackedByteArray, data_censored: PackedByteArray) -> void:
+	level_data = data_censored
+	$Query.update_level(data)
+	update_chunks()
+
+func __shutdown_thread() -> void:
+	if thread != null:
+		__work_mutex.lock()
+		__quitting = true
+		__work_mutex.unlock()
+		__sema.post()
+		thread.wait_to_finish()
+		thread = null
 
 func __wasm_random(p: int, n: int) -> void:
 	wasm_instance.memory_write(p, crypto.generate_random_bytes(n))

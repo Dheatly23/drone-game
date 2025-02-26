@@ -589,6 +589,7 @@ name = "level-controller"
 version = "0.1.0"
 dependencies = [
  "glam",
+ "hashbrown 0.15.2",
  "level-state",
  "rand 0.9.0",
  "rand_xoshiro",
@@ -605,6 +606,18 @@ dependencies = [
  "level-state",
  "rkyv",
  "util-wasm",
+]
+
+[[package]]
+name = "level-query"
+version = "0.1.0"
+dependencies = [
+ "glam",
+ "hashbrown 0.15.2",
+ "level-state",
+ "rkyv",
+ "util-wasm",
+ "uuid",
 ]
 
 [[package]]

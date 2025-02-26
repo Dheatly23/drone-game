@@ -1,5 +1,7 @@
 extends ColorRect
 
+var prev_state: Input.MouseMode
+
 func _ready() -> void:
 	__update(false)
 
@@ -11,7 +13,11 @@ func _input(event: InputEvent) -> void:
 
 func __update(state: bool) -> void:
 	visible = state
-	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE if state else Input.MOUSE_MODE_CAPTURED
+	if state:
+		prev_state = Input.mouse_mode
+		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	else:
+		Input.mouse_mode = prev_state
 
 func __resume() -> void:
 	get_tree().paused = false

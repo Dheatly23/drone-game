@@ -1,9 +1,32 @@
-[gd_scene load_steps=5 format=3 uid="uid://rxwdcxd3jib"]
+[gd_scene load_steps=11 format=3 uid="uid://rxwdcxd3jib"]
 
 [ext_resource type="Script" path="res://level/test/test_scene.gd" id="1_es4cw"]
 [ext_resource type="PackedScene" uid="uid://c7px4aj3vkc0j" path="res://level/level.tscn" id="1_xn46c"]
 [ext_resource type="PackedScene" uid="uid://lvyeachixp2" path="res://level/pause/pause.tscn" id="2_3m5vm"]
 [ext_resource type="WasmModule" uid="uid://c4qaie2mgfrd3" path="res://wasm/level_gen.wasm" id="2_bl67x"]
+[ext_resource type="Script" path="res://level/test/camera.gd" id="5_6m5dp"]
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_s631d"]
+transparency = 1
+no_depth_test = true
+shading_mode = 0
+albedo_color = Color(1, 1, 1, 0.388235)
+
+[sub_resource type="BoxMesh" id="BoxMesh_li3hf"]
+material = SubResource("StandardMaterial3D_s631d")
+
+[sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_t3ais"]
+sky_horizon_color = Color(0.64625, 0.65575, 0.67075, 1)
+ground_horizon_color = Color(0.64625, 0.65575, 0.67075, 1)
+
+[sub_resource type="Sky" id="Sky_2wd7n"]
+sky_material = SubResource("ProceduralSkyMaterial_t3ais")
+
+[sub_resource type="Environment" id="Environment_mrqoc"]
+background_mode = 2
+sky = SubResource("Sky_2wd7n")
+tonemap_mode = 2
+glow_enabled = true
 
 [node name="Test Scene" type="Node3D"]
 script = ExtResource("1_es4cw")
@@ -12,7 +35,69 @@ tick_delay = 0.05
 
 [node name="Level" parent="." instance=ExtResource("1_xn46c")]
 
+[node name="Select" type="MeshInstance3D" parent="."]
+mesh = SubResource("BoxMesh_li3hf")
+
 [node name="Pause" parent="." instance=ExtResource("2_3m5vm")]
 
-[connection signal="chunks_updated" from="Level" to="." method="__chunks_updated"]
+[node name="Camera" type="Camera3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5, 5, 5)
+current = true
+script = ExtResource("5_6m5dp")
+select_box = NodePath("../Select")
+level = NodePath("../Level")
+select_label = NodePath("../HUD/TopLeft/Grid/Select")
+look_y = 45.0
+
+[node name="Environment" type="WorldEnvironment" parent="."]
+environment = SubResource("Environment_mrqoc")
+
+[node name="Light" type="DirectionalLight3D" parent="."]
+transform = Transform3D(-0.866025, -0.433013, 0.25, 0, 0.5, 0.866025, -0.5, 0.75, -0.433013, 0, 0, 0)
+shadow_enabled = true
+
+[node name="HUD" type="CanvasLayer" parent="."]
+layer = 2
+
+[node name="GizmoContainer" type="CenterContainer" parent="HUD"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="ColorRect" type="ColorRect" parent="HUD/GizmoContainer"]
+custom_minimum_size = Vector2(8, 8)
+layout_mode = 2
+mouse_filter = 1
+color = Color(0, 0, 0, 0.4)
+
+[node name="TopLeft" type="MarginContainer" parent="HUD"]
+offset_right = 89.0
+offset_bottom = 23.0
+theme_override_constants/margin_left = 10
+theme_override_constants/margin_top = 10
+theme_override_constants/margin_right = 10
+theme_override_constants/margin_bottom = 10
+
+[node name="Grid" type="GridContainer" parent="HUD/TopLeft"]
+layout_mode = 2
+columns = 2
+
+[node name="TickLbl" type="Label" parent="HUD/TopLeft/Grid"]
+layout_mode = 2
+text = "Tick time (ms):"
+
+[node name="Tick" type="Label" parent="HUD/TopLeft/Grid"]
+layout_mode = 2
+text = "0"
+
+[node name="SelectLbl" type="Label" parent="HUD/TopLeft/Grid"]
+layout_mode = 2
+text = "Select coord:"
+
+[node name="Select" type="Label" parent="HUD/TopLeft/Grid"]
+layout_mode = 2
+
 [connection signal="initialized" from="Level" to="." method="__level_inited"]
+[connection signal="tick_processed" from="Level" to="." method="__tick_processed"]

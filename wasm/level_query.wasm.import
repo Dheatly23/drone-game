@@ -1,0 +1,15 @@
+[remap]
+
+importer="godot_wasm.wasm"
+type="WasmModule"
+uid="uid://coktduo3y7lp1"
+path="res://.godot/imported/level_query.wasm-66b8bf5e8e1df8101749fcf0b93720df.cwasm"
+
+[deps]
+
+source_file="res://wasm/level_query.wasm"
+dest_files=["res://.godot/imported/level_query.wasm-66b8bf5e8e1df8101749fcf0b93720df.cwasm"]
+
+[params]
+
+include_original_file=false
