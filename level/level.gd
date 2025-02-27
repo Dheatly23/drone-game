@@ -88,15 +88,13 @@ var crypto := Crypto.new()
 var mutex := Mutex.new()
 var thread: Thread = null
 
-var level_data := PackedByteArray()
-
 var __work_mutex := Mutex.new()
 var __sema := Semaphore.new()
 var __quitting := false
 var __ticking := false
 
 func _ready() -> void:
-	$Query.crypto = crypto
+	level_query.crypto = crypto
 
 func _exit_tree() -> void:
 	__shutdown_thread()
@@ -143,17 +141,14 @@ func init_chunks() -> void:
 
 func update_chunks(init: bool = false) -> void:
 	mutex.lock()
-	if init:
-		buffer_data = PackedByteArray()
-		wasm_instance.call_wasm(&"export_censored", [])
-		level_data = buffer_data
-		buffer_data = PackedByteArray()
 	wasm_instance.call_wasm(&"entity_update", [])
+	mutex.unlock()
 
 	for k in chunks:
+		mutex.lock()
 		chunks[k].update_chunk()
+		mutex.unlock()
 
-	mutex.unlock()
 	__work_mutex.lock()
 	__ticking = false
 	__work_mutex.unlock()
@@ -222,10 +217,13 @@ func __tick_fn() -> void:
 		drones.push_back(v["node"])
 
 	mutex.lock()
-	var c := __drone_work.bind(drones, level_data)
+	buffer_data = PackedByteArray()
+	wasm_instance.call_wasm(&"export_censored", [])
+	var buffer := buffer_data
+	buffer_data = PackedByteArray()
 	mutex.unlock()
 	var group_id := WorkerThreadPool.add_group_task(
-		c,
+		__drone_work.bind(drones, buffer),
 		len(drones),
 		-1,
 		false,
@@ -238,11 +236,7 @@ func __tick_fn() -> void:
 	wasm_instance.call_wasm(&"tick", [])
 	buffer_data = PackedByteArray()
 	wasm_instance.call_wasm(&"export", [])
-	var uncen := buffer_data
-	buffer_data = PackedByteArray()
-	wasm_instance.call_wasm(&"export_censored", [])
-	var cen := buffer_data
-	__tick_main.call_deferred(uncen, cen)
+	__tick_main.call_deferred(buffer_data)
 	buffer_data = PackedByteArray()
 	mutex.unlock()
 
@@ -309,9 +303,8 @@ func __drone_work(ix, drones: Array, data: PackedByteArray) -> void:
 	buffer_data = PackedByteArray()
 	mutex.unlock()
 
-func __tick_main(data: PackedByteArray, data_censored: PackedByteArray) -> void:
-	level_data = data_censored
-	$Query.update_level(data)
+func __tick_main(data: PackedByteArray) -> void:
+	level_query.update_level(data)
 	update_chunks()
 
 func __shutdown_thread() -> void:

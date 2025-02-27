@@ -10,7 +10,7 @@
 transparency = 1
 no_depth_test = true
 shading_mode = 0
-albedo_color = Color(1, 1, 1, 0.388235)
+albedo_color = Color(1, 1, 1, 0.133333)
 
 [sub_resource type="BoxMesh" id="BoxMesh_li3hf"]
 material = SubResource("StandardMaterial3D_s631d")
@@ -88,7 +88,8 @@ columns = 2
 layout_mode = 2
 text = "Tick time (ms):"
 
-[node name="Tick" type="Label" parent="HUD/TopLeft/Grid"]
+[node name="TickTxt" type="Label" parent="HUD/TopLeft/Grid"]
+unique_name_in_owner = true
 layout_mode = 2
 text = "0"
 
@@ -99,5 +100,38 @@ text = "Select coord:"
 [node name="Select" type="Label" parent="HUD/TopLeft/Grid"]
 layout_mode = 2
 
+[node name="Bottom" type="MarginContainer" parent="HUD"]
+anchors_preset = 7
+anchor_left = 0.5
+anchor_top = 1.0
+anchor_right = 0.5
+anchor_bottom = 1.0
+offset_left = -20.0
+offset_top = -40.0
+offset_right = 20.0
+grow_horizontal = 2
+grow_vertical = 0
+theme_override_constants/margin_left = 10
+theme_override_constants/margin_top = 10
+theme_override_constants/margin_right = 10
+theme_override_constants/margin_bottom = 10
+
+[node name="HBox" type="HBoxContainer" parent="HUD/Bottom"]
+layout_mode = 2
+theme_override_constants/separation = 3
+alignment = 1
+
+[node name="PauseBtn" type="Button" parent="HUD/Bottom/HBox"]
+unique_name_in_owner = true
+layout_mode = 2
+toggle_mode = true
+text = "Pause"
+
+[node name="StepBtn" type="Button" parent="HUD/Bottom/HBox"]
+layout_mode = 2
+text = "Step"
+
 [connection signal="initialized" from="Level" to="." method="__level_inited"]
 [connection signal="tick_processed" from="Level" to="." method="__tick_processed"]
+[connection signal="toggled" from="HUD/Bottom/HBox/PauseBtn" to="." method="__pause_toggled"]
+[connection signal="pressed" from="HUD/Bottom/HBox/StepBtn" to="." method="set" binds= [&"tick_step", true]]

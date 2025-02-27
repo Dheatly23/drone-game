@@ -6,6 +6,8 @@ extends Node3D
 var thread: Thread = null
 
 var time_acc := 0.0
+var tick_paused := false
+var tick_step := false
 
 var wasi_ctx := WasiContext.new().initialize({})
 var wasm_instance: WasmInstance
@@ -71,9 +73,11 @@ func _ready() -> void:
 		level.init_empty()
 
 func _process(delta: float) -> void:
-	time_acc += delta
-	if time_acc >= tick_delay and (thread == null or not thread.is_alive()) and $Level.tick():
-		time_acc = 0.0
+	if not tick_paused or tick_step:
+		time_acc += delta
+		if time_acc >= tick_delay and (thread == null or not thread.is_alive()) and $Level.tick():
+			time_acc = 0.0
+			tick_step = false
 
 func _exit_tree() -> void:
 	if thread != null:
@@ -124,4 +128,8 @@ func __log(msg: String) -> void:
 	print(msg.strip_edges(false, true))
 
 func __tick_processed(time: float) -> void:
-	$HUD/TopLeft/Grid/Tick.text = "Tick provessed: %.3f ms" % (time * 1e3)
+	%TickTxt.text = "Tick provessed: %.3f ms" % (time * 1e3)
+
+func __pause_toggled(paused: bool) -> void:
+	tick_paused = paused
+	%PauseBtn.text = "Paused" if paused else "Pause"
