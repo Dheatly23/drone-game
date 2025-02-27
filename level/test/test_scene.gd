@@ -106,6 +106,13 @@ func __level_inited() -> void:
 			},
 		)
 
+func __tick_processed(time: float) -> void:
+	%TickTxt.text = "Tick provessed: %.3f ms" % (time * 1e3)
+
+func __pause_toggled(paused: bool) -> void:
+	tick_paused = paused
+	%PauseBtn.text = "Paused" if paused else "Pause"
+
 func __wasm_random(p: int, n: int) -> void:
 	wasm_instance.memory_write(p, crypto.generate_random_bytes(n))
 
@@ -126,10 +133,3 @@ func __wasm_log(p: int, n: int) -> void:
 
 func __log(msg: String) -> void:
 	print(msg.strip_edges(false, true))
-
-func __tick_processed(time: float) -> void:
-	%TickTxt.text = "Tick provessed: %.3f ms" % (time * 1e3)
-
-func __pause_toggled(paused: bool) -> void:
-	tick_paused = paused
-	%PauseBtn.text = "Paused" if paused else "Pause"
