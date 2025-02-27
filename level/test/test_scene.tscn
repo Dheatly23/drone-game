@@ -1,10 +1,13 @@
-[gd_scene load_steps=11 format=3 uid="uid://rxwdcxd3jib"]
+[gd_scene load_steps=14 format=3 uid="uid://rxwdcxd3jib"]
 
 [ext_resource type="Script" path="res://level/test/test_scene.gd" id="1_es4cw"]
 [ext_resource type="PackedScene" uid="uid://c7px4aj3vkc0j" path="res://level/level.tscn" id="1_xn46c"]
 [ext_resource type="PackedScene" uid="uid://lvyeachixp2" path="res://level/pause/pause.tscn" id="2_3m5vm"]
 [ext_resource type="WasmModule" uid="uid://c4qaie2mgfrd3" path="res://wasm/level_gen.wasm" id="2_bl67x"]
 [ext_resource type="Script" path="res://level/test/camera.gd" id="5_6m5dp"]
+[ext_resource type="Script" path="res://level/test/drone_edit.gd" id="6_46i7v"]
+[ext_resource type="WasmModule" uid="uid://1idgx7hmk24a" path="res://wasm/drone_test_simple.wasm" id="7_uw8xf"]
+[ext_resource type="WasmModule" uid="uid://bhxridj7fl77f" path="res://wasm/drone_js.wasm" id="8_qc1lv"]
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_s631d"]
 transparency = 1
@@ -34,6 +37,7 @@ level_gen = ExtResource("2_bl67x")
 tick_delay = 0.05
 
 [node name="Level" parent="." instance=ExtResource("1_xn46c")]
+unique_name_in_owner = true
 
 [node name="Select" type="MeshInstance3D" parent="."]
 mesh = SubResource("BoxMesh_li3hf")
@@ -41,6 +45,7 @@ mesh = SubResource("BoxMesh_li3hf")
 [node name="Pause" parent="." instance=ExtResource("2_3m5vm")]
 
 [node name="Camera" type="Camera3D" parent="."]
+unique_name_in_owner = true
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5, 5, 5)
 current = true
 script = ExtResource("5_6m5dp")
@@ -91,6 +96,7 @@ text = "Tick time (ms):"
 [node name="TickTxt" type="Label" parent="HUD/TopLeft/Grid"]
 unique_name_in_owner = true
 layout_mode = 2
+size_flags_horizontal = 3
 text = "0"
 
 [node name="SelectLbl" type="Label" parent="HUD/TopLeft/Grid"]
@@ -99,6 +105,86 @@ text = "Select coord:"
 
 [node name="Select" type="Label" parent="HUD/TopLeft/Grid"]
 layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="TopRight" type="MarginContainer" parent="HUD"]
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -40.0
+offset_bottom = 40.0
+grow_horizontal = 0
+theme_override_constants/margin_left = 10
+theme_override_constants/margin_top = 10
+theme_override_constants/margin_right = 10
+theme_override_constants/margin_bottom = 10
+
+[node name="DroneEdit" type="PanelContainer" parent="HUD/TopRight"]
+unique_name_in_owner = true
+layout_mode = 2
+script = ExtResource("6_46i7v")
+level = NodePath("../../../Level")
+uuid_text = NodePath("VBox/Grid/UuidTxt")
+wasm_list = NodePath("VBox/Grid/WasmLst")
+args_node = NodePath("VBox/Grid/ArgsScr/VBox")
+exec_button = NodePath("VBox/ExecBtn")
+wasm_modules = Array[WasmModule]([ExtResource("7_uw8xf"), ExtResource("8_qc1lv")])
+
+[node name="VBox" type="VBoxContainer" parent="HUD/TopRight/DroneEdit"]
+layout_mode = 2
+
+[node name="Grid" type="GridContainer" parent="HUD/TopRight/DroneEdit/VBox"]
+layout_mode = 2
+columns = 2
+
+[node name="UuidLbl" type="Label" parent="HUD/TopRight/DroneEdit/VBox/Grid"]
+layout_mode = 2
+text = "Drone Uuid:"
+
+[node name="UuidTxt" type="LineEdit" parent="HUD/TopRight/DroneEdit/VBox/Grid"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+placeholder_text = "None"
+editable = false
+
+[node name="WasmLbl" type="Label" parent="HUD/TopRight/DroneEdit/VBox/Grid"]
+layout_mode = 2
+text = "WASM Executable:"
+
+[node name="WasmLst" type="OptionButton" parent="HUD/TopRight/DroneEdit/VBox/Grid"]
+layout_mode = 2
+size_flags_horizontal = 3
+item_count = 2
+popup/item_0/text = "drone_test_simple.wasm"
+popup/item_1/text = "drone_js.wasm"
+popup/item_1/id = 1
+
+[node name="ArgsLbl" type="Label" parent="HUD/TopRight/DroneEdit/VBox/Grid"]
+layout_mode = 2
+size_flags_vertical = 0
+text = "Arguments:"
+
+[node name="ArgsScr" type="ScrollContainer" parent="HUD/TopRight/DroneEdit/VBox/Grid"]
+custom_minimum_size = Vector2(200, 150)
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+horizontal_scroll_mode = 0
+vertical_scroll_mode = 2
+
+[node name="VBox" type="VBoxContainer" parent="HUD/TopRight/DroneEdit/VBox/Grid/ArgsScr"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="AddBtn" type="Button" parent="HUD/TopRight/DroneEdit/VBox/Grid/ArgsScr/VBox"]
+layout_mode = 2
+text = "Add"
+
+[node name="ExecBtn" type="Button" parent="HUD/TopRight/DroneEdit/VBox"]
+layout_mode = 2
+disabled = true
+text = "Execute"
 
 [node name="Bottom" type="MarginContainer" parent="HUD"]
 anchors_preset = 7
@@ -131,7 +217,8 @@ text = "Pause"
 layout_mode = 2
 text = "Step"
 
-[connection signal="initialized" from="Level" to="." method="__level_inited"]
 [connection signal="tick_processed" from="Level" to="." method="__tick_processed"]
+[connection signal="pressed" from="HUD/TopRight/DroneEdit/VBox/Grid/ArgsScr/VBox/AddBtn" to="HUD/TopRight/DroneEdit" method="add_argument"]
+[connection signal="pressed" from="HUD/TopRight/DroneEdit/VBox/ExecBtn" to="HUD/TopRight/DroneEdit" method="exec_toggled"]
 [connection signal="toggled" from="HUD/Bottom/HBox/PauseBtn" to="." method="__pause_toggled"]
 [connection signal="pressed" from="HUD/Bottom/HBox/StepBtn" to="." method="set" binds= [&"tick_step", true]]

@@ -7,7 +7,6 @@ use glam::f32::Vec3;
 use hashbrown::hash_map::HashMap;
 use rkyv::api::high::access;
 use rkyv::rancor::Panic;
-use uuid::Uuid;
 
 use level_state::{ArchivedLevelState, BlockEntityHasher, CHUNK_SIZE};
 use util_wasm::read;
@@ -33,12 +32,12 @@ struct RayPoint {
 #[repr(C)]
 pub struct RayData {
     point: RayPoint,
-    uuid: Uuid,
+    uuid: [u32; 4],
 }
 
 static mut RAY_RES: RayData = RayData {
     point: RayPoint { x: 0, y: 0, z: 0 },
-    uuid: Uuid::nil(),
+    uuid: [0; 4],
 };
 
 #[unsafe(no_mangle)]
@@ -86,7 +85,12 @@ fn get_ray_helper(level: &ArchivedLevelState, d: Vec3, n: Vec3) -> ControlFlow<R
     };
 
     let check_fn = |x: isize, y: isize, z: isize| {
-        if x < 0 || y < 0 || z < 0 || (x as usize) / CHUNK_SIZE >= sx || (y as usize) / CHUNK_SIZE >= sy || (z as usize) / CHUNK_SIZE >= sz
+        if x < 0
+            || y < 0
+            || z < 0
+            || (x as usize) / CHUNK_SIZE >= sx
+            || (y as usize) / CHUNK_SIZE >= sy
+            || (z as usize) / CHUNK_SIZE >= sz
         {
             return ControlFlow::Continue(());
         }
@@ -96,7 +100,16 @@ fn get_ray_helper(level: &ArchivedLevelState, d: Vec3, n: Vec3) -> ControlFlow<R
         let z = z as usize;
         let p = RayPoint { x, y, z };
         if let Some(v) = be_pos.get(&p) {
-            ControlFlow::Break(RayData { point: p, uuid: *v })
+            let v = v.as_u128();
+            ControlFlow::Break(RayData {
+                point: p,
+                uuid: [
+                    (v & 0xffff_ffff) as u32,
+                    ((v >> 32) & 0xffff_ffff) as u32,
+                    ((v >> 64) & 0xffff_ffff) as u32,
+                    ((v >> 96) & 0xffff_ffff) as u32,
+                ],
+            })
         } else if level
             .get_chunk(x / CHUNK_SIZE, y / CHUNK_SIZE, z / CHUNK_SIZE)
             .get_block(x % CHUNK_SIZE, y % CHUNK_SIZE, z % CHUNK_SIZE)
@@ -105,7 +118,7 @@ fn get_ray_helper(level: &ArchivedLevelState, d: Vec3, n: Vec3) -> ControlFlow<R
         {
             ControlFlow::Break(RayData {
                 point: p,
-                uuid: Uuid::nil(),
+                uuid: [0; 4],
             })
         } else {
             ControlFlow::Continue(())

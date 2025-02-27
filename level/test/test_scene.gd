@@ -9,18 +9,12 @@ var time_acc := 0.0
 var tick_paused := false
 var tick_step := false
 
-var wasi_ctx := WasiContext.new().initialize({})
 var wasm_instance: WasmInstance
 var buffer_data := PackedByteArray()
 var crypto := Crypto.new()
 
 func _ready() -> void:
-	wasi_ctx.stdout_emit.connect(__log)
-	wasi_ctx.stderr_emit.connect(__log)
-	wasi_ctx.mount_physical_dir(ProjectSettings.globalize_path("res://js"), "/js")
-	wasi_ctx.fs_readonly = true
-
-	var level := $Level
+	var level := %Level
 
 	if level_gen != null:
 		var c := func():
@@ -75,36 +69,27 @@ func _ready() -> void:
 func _process(delta: float) -> void:
 	if not tick_paused or tick_step:
 		time_acc += delta
-		if time_acc >= tick_delay and (thread == null or not thread.is_alive()) and $Level.tick():
+		if time_acc >= tick_delay and (thread == null or not thread.is_alive()) and %Level.tick():
 			time_acc = 0.0
 			tick_step = false
+
+func _unhandled_input(event: InputEvent) -> void:
+	if event is InputEventMouseButton:
+		if event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+			var sel: Dictionary = %Camera.selected
+			if sel["found"]:
+				handle_select(sel)
 
 func _exit_tree() -> void:
 	if thread != null:
 		thread.wait_to_finish()
 
-func __level_inited() -> void:
-	# Load WASM module to drone
-	var be: Dictionary = $Level.block_entities
-	for k in be:
-		var v: Dictionary = be[k]
-		if v["type"] != "drone":
-			continue
-
-		v["node"].initialize_wasm(
-			preload("res://wasm/drone_js.wasm"),
-			{
-				"epoch.enable": true,
-				"epoch.timeout": 30.0,
-				"wasi.enable": true,
-				"wasi.context": wasi_ctx,
-				"wasi.args": ["drone", "/js/simple.js"],
-				"wasi.stdout.bindMode": "context",
-				"wasi.stdout.bufferMode": "line",
-				"wasi.stderr.bindMode": "context",
-				"wasi.stderr.bufferMode": "line",
-			},
-		)
+func handle_select(selected: Dictionary) -> void:
+	var uuid = selected.get("uuid")
+	if uuid != null:
+		var data = %Level.block_entities.get(uuid)
+		if data != null and data["type"] == "drone":
+			%DroneEdit.select_drone(uuid)
 
 func __tick_processed(time: float) -> void:
 	%TickTxt.text = "Tick provessed: %.3f ms" % (time * 1e3)
@@ -130,6 +115,3 @@ func __wasm_write_buffer(p: int, n: int) -> void:
 
 func __wasm_log(p: int, n: int) -> void:
 	print(wasm_instance.memory_read(p, n).get_string_from_utf8())
-
-func __log(msg: String) -> void:
-	print(msg.strip_edges(false, true))

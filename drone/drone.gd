@@ -54,14 +54,6 @@ func initialize_wasm(module: WasmModule, config: Dictionary) -> void:
 	)
 	wasm_instance.call_wasm(&"init", [uuid.x, uuid.y, uuid.z, uuid.w])
 
-	var c := hash(uuid)
-	c ^= c >> 32
-	$Mesh.material_override.albedo_color = Color(
-		float((c ^ (c >> 24)) & 255) / 255.,
-		float(((c >> 8) ^ (c >> 24)) & 255) / 255.,
-		float(((c >> 16) ^ (c >> 24)) & 255) / 255.,
-	)
-
 func update_data(data: Dictionary) -> void:
 	position = Vector3(data["coord"])
 
@@ -77,6 +69,15 @@ func tick(level_data: PackedByteArray) -> PackedByteArray:
 	var ret := buffer_data
 	buffer_data = PackedByteArray()
 	return ret
+
+func _ready() -> void:
+	var c := hash(uuid)
+	c ^= c >> 32
+	$Mesh.material_override.albedo_color = Color(
+		float((c ^ (c >> 24)) & 255) / 255.,
+		float(((c >> 8) ^ (c >> 24)) & 255) / 255.,
+		float(((c >> 16) ^ (c >> 24)) & 255) / 255.,
+	)
 
 func __wasm_read_buffer(p: int, n: int) -> int:
 	if len(buffer_data) > n:

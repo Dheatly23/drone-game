@@ -1,0 +1,18 @@
+[gd_scene format=3 uid="uid://bhvuyg6x34eh4"]
+
+[node name="ArgLine" type="HBoxContainer"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Arg" type="LineEdit" parent="."]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="Remove" type="Button" parent="."]
+layout_mode = 2
+text = "-"
+
+[connection signal="pressed" from="Remove" to="." method="queue_free"]
