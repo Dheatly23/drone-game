@@ -23,12 +23,14 @@ pub extern "C" fn generate() {
         }
     }
 
-    level.block_entities_mut().add(BlockEntity::new(
-        1,
-        1,
-        1,
-        BlockEntityData::Drone(Drone::new()),
-    ));
+    for (x, z) in [(0, 0), (0, 1), (1, 0), (1, 1)] {
+        level.block_entities_mut().add(BlockEntity::new(
+            x,
+            1,
+            z,
+            BlockEntityData::Drone(Drone::new()),
+        ));
+    }
 
     unsafe {
         write(move |buf| {
