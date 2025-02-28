@@ -5,8 +5,9 @@ mod executor;
 use std::cell::{Cell, RefCell};
 use std::collections::VecDeque;
 use std::collections::hash_map::{Entry, HashMap};
-use std::env::args;
+use std::env::vars_os;
 use std::error::Error;
+use std::ffi::{OsStr, OsString};
 use std::fmt::{Debug, Display, Formatter, Result as FmtResult, Write as _};
 use std::future::Future;
 use std::mem::{MaybeUninit, replace, swap};
@@ -19,12 +20,14 @@ use std::task::{Context as FutContext, Poll, Waker};
 use arrayvec::ArrayString;
 use boa_engine::class::{Class, ClassBuilder};
 use boa_engine::job::{FutureJob, JobQueue, NativeJob};
-use boa_engine::object::builtins::{JsArray, JsArrayBuffer, JsFunction, JsPromise};
+use boa_engine::module::SimpleModuleLoader;
+use boa_engine::object::builtins::{JsArray, JsArrayBuffer, JsFunction, JsMap, JsPromise};
 use boa_engine::object::{IntegrityLevel, ObjectInitializer};
 use boa_engine::prelude::*;
 use boa_engine::property::Attribute;
 use boa_engine::{JsArgs as _, JsResult, js_error, js_string};
 use boa_runtime::Console;
+use clap::Parser;
 use rkyv::api::high::{access, to_bytes_in};
 use rkyv::rancor::Panic;
 use rkyv::ser::writer::Buffer;
@@ -34,6 +37,29 @@ use level_state::{
     ArchivedBlockEntityData, ArchivedLevelState, Block, CHUNK_SIZE, Command, Direction,
 };
 use util_wasm::{ChannelId, read, write_data};
+
+/// JS runner for drone.
+#[derive(Debug, Parser)]
+#[command(version, about, long_about)]
+struct Args {
+    /// JS file to run.
+    file: PathBuf,
+
+    /// Arguments for JS.
+    extra: Vec<OsString>,
+
+    /// Run in strict mode.
+    #[arg(long)]
+    strict: bool,
+
+    /// Run file as module.
+    #[arg(short, long)]
+    module: bool,
+
+    /// Root for module resolution.
+    #[arg(short, long)]
+    root: Option<PathBuf>,
+}
 
 static mut UUID: Uuid = Uuid::nil();
 static mut CONTEXT: Option<Context> = None;
@@ -56,10 +82,7 @@ pub extern "C" fn init(a0: u32, a1: u32, a2: u32, a3: u32) {
     }
 
     *context = None;
-    let Some(path) = args().nth(1) else {
-        return;
-    };
-    *context = Some(load_js(path).unwrap());
+    *context = Some(load_js(Args::parse()).unwrap());
 }
 
 #[unsafe(no_mangle)]
@@ -83,10 +106,15 @@ pub extern "C" fn tick() {
     }
 }
 
-fn load_js(path: String) -> JsResult<Context> {
+fn load_js(args: Args) -> JsResult<Context> {
+    let loader = Rc::new(SimpleModuleLoader::new(
+        args.root.as_ref().map_or("/".as_ref(), PathBuf::as_path),
+    )?);
     let mut ctx = Context::builder()
         .job_queue(Rc::new(JobRunner::new(16)))
+        .module_loader(loader.clone())
         .build()?;
+    ctx.strict(args.strict);
 
     // Classes
     ctx.register_global_class::<Chunk>()?;
@@ -95,12 +123,51 @@ fn load_js(path: String) -> JsResult<Context> {
     let console = Console::init(&mut ctx);
     ctx.register_global_property(Console::NAME, console, Attribute::all())?;
 
+    // OS
+    let mut temp = Vec::new();
+    let mut f = move |s: &OsStr| {
+        temp.clear();
+        for c in s.as_encoded_bytes().utf8_chunks() {
+            temp.extend(c.valid().encode_utf16());
+            if !c.invalid().is_empty() {
+                temp.push(0xfffd);
+            }
+        }
+
+        JsString::from(&*temp)
+    };
+    let argv = JsArray::from_iter(args.extra.iter().map(|s| f(s).into()), &mut ctx);
+
+    let env = JsMap::new(&mut ctx);
+    for (k, v) in vars_os() {
+        env.set(f(&k), f(&v), &mut ctx)?;
+    }
+
+    drop(f);
+    let os = ObjectInitializer::new(&mut ctx)
+        .property(js_string!("argv"), argv, Attribute::all())
+        .property(js_string!("env"), env, Attribute::all())
+        .build();
+    ctx.register_global_property(js_string!("OS"), os, Attribute::all())?;
+
     // Level
     let level = Level::new(&mut ctx).into_object(&mut ctx);
     ctx.register_global_property(js_string!("Level"), level, Attribute::all())?;
 
-    // Eval
-    ctx.eval(Source::from_filepath(&PathBuf::from(path)).map_err(JsError::from_rust)?)?;
+    if args.module {
+        // Module
+        let module = Module::parse(
+            Source::from_filepath(&args.file).map_err(JsError::from_rust)?,
+            None,
+            &mut ctx,
+        )?;
+        loader.insert(args.file.clone(), module.clone());
+        // We do not care about module result
+        module.load_link_evaluate(&mut ctx);
+    } else {
+        // Eval
+        ctx.eval(Source::from_filepath(&args.file).map_err(JsError::from_rust)?)?;
+    }
 
     Ok(ctx)
 }

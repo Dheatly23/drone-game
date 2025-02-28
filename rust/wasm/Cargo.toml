@@ -27,6 +27,12 @@ uuid = "^1"
 level-state.path = "level/level-state"
 util-wasm.path = "util"
 
+[workspace.dependencies.clap]
+version = "^4"
+features = [
+  "derive",
+]
+
 [workspace.dependencies.rkyv]
 version = "0.8"
 features = [
