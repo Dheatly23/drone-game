@@ -12,15 +12,16 @@ use std::fmt::{Debug, Display, Formatter, Result as FmtResult, Write as _};
 use std::future::Future;
 use std::mem::{MaybeUninit, replace, swap};
 use std::ops::Deref;
-use std::path::PathBuf;
+use std::path::{Component, Path, PathBuf};
 use std::pin::Pin;
 use std::rc::Rc;
 use std::task::{Context as FutContext, Poll, Waker};
 
 use arrayvec::ArrayString;
 use boa_engine::class::{Class, ClassBuilder};
+use boa_engine::gc::GcRefCell;
 use boa_engine::job::{FutureJob, JobQueue, NativeJob};
-use boa_engine::module::SimpleModuleLoader;
+use boa_engine::module::{ModuleLoader, Referrer};
 use boa_engine::object::builtins::{JsArray, JsArrayBuffer, JsFunction, JsMap, JsPromise};
 use boa_engine::object::{IntegrityLevel, ObjectInitializer};
 use boa_engine::prelude::*;
@@ -106,15 +107,23 @@ pub extern "C" fn tick() {
     }
 }
 
-fn load_js(args: Args) -> JsResult<Context> {
-    let loader = Rc::new(SimpleModuleLoader::new(
-        args.root.as_ref().map_or("/".as_ref(), PathBuf::as_path),
-    )?);
+fn load_js(
+    Args {
+        file,
+        extra,
+        strict,
+        module,
+        root,
+    }: Args,
+) -> JsResult<Context> {
+    assert!(file.is_absolute(), "relative path is not allowed!");
+
+    let loader = Rc::new(ModLoader::new(root.unwrap_or_else(|| PathBuf::from("/"))));
     let mut ctx = Context::builder()
         .job_queue(Rc::new(JobRunner::new(16)))
         .module_loader(loader.clone())
         .build()?;
-    ctx.strict(args.strict);
+    ctx.strict(strict);
 
     // Classes
     ctx.register_global_class::<Chunk>()?;
@@ -136,7 +145,7 @@ fn load_js(args: Args) -> JsResult<Context> {
 
         JsString::from(&*temp)
     };
-    let argv = JsArray::from_iter(args.extra.iter().map(|s| f(s).into()), &mut ctx);
+    let argv = JsArray::from_iter(extra.into_iter().map(|s| f(&s).into()), &mut ctx);
 
     let env = JsMap::new(&mut ctx);
     for (k, v) in vars_os() {
@@ -154,19 +163,19 @@ fn load_js(args: Args) -> JsResult<Context> {
     let level = Level::new(&mut ctx).into_object(&mut ctx);
     ctx.register_global_property(js_string!("Level"), level, Attribute::all())?;
 
-    if args.module {
+    if module {
         // Module
         let module = Module::parse(
-            Source::from_filepath(&args.file).map_err(JsError::from_rust)?,
+            Source::from_filepath(&file).map_err(JsError::from_rust)?,
             None,
             &mut ctx,
         )?;
-        loader.insert(args.file.clone(), module.clone());
+        loader.insert(file.clone(), module.clone());
         // We do not care about module result
         module.load_link_evaluate(&mut ctx);
     } else {
         // Eval
-        ctx.eval(Source::from_filepath(&args.file).map_err(JsError::from_rust)?)?;
+        ctx.eval(Source::from_filepath(&file).map_err(JsError::from_rust)?)?;
     }
 
     Ok(ctx)
@@ -1009,6 +1018,103 @@ impl JobQueue for JobRunner {
                 }
             }
         }
+    }
+}
+
+struct ModLoader {
+    root: PathBuf,
+    module_map: GcRefCell<HashMap<PathBuf, Module>>,
+}
+
+impl ModLoader {
+    fn new(root: PathBuf) -> Self {
+        assert!(root.is_absolute(), "relative path is not allowed!");
+
+        Self {
+            root,
+            module_map: GcRefCell::default(),
+        }
+    }
+
+    #[inline]
+    pub fn insert(&self, path: PathBuf, module: Module) {
+        self.module_map.borrow_mut().insert(path, module);
+    }
+
+    #[inline]
+    pub fn get(&self, path: &Path) -> Option<Module> {
+        self.module_map.borrow().get(path).cloned()
+    }
+}
+
+impl ModuleLoader for ModLoader {
+    fn load_imported_module(
+        &self,
+        referrer: Referrer,
+        specifier: JsString,
+        finish_load: Box<dyn FnOnce(JsResult<Module>, &mut Context)>,
+        ctx: &mut Context,
+    ) {
+        fn path_outside_root() -> JsError {
+            JsError::from_opaque(js_string!("path is outside the module root").into())
+        }
+
+        fn f(
+            this: &ModLoader,
+            referrer: Referrer,
+            specifier: JsString,
+            ctx: &mut Context,
+        ) -> JsResult<Module> {
+            let specifier = specifier.to_std_string_escaped();
+            let spec = PathBuf::from(&specifier);
+            let mut path;
+            if spec.is_absolute() {
+                path = spec;
+                if !path.starts_with(&this.root) {
+                    return Err(path_outside_root());
+                }
+            } else {
+                path = referrer.path().map_or(PathBuf::new(), Path::to_owned);
+                for c in spec.components() {
+                    if c != Component::ParentDir {
+                        path.push(c);
+                    } else if path.as_os_str().is_empty() {
+                        return Err(path_outside_root());
+                    } else {
+                        path.pop();
+                    }
+                }
+                drop(spec);
+                path = this.root.join(path);
+            }
+
+            if let Some(m) = this.get(&path) {
+                return Ok(m);
+            }
+
+            let source = Source::from_filepath(&path).map_err(|e| {
+                JsNativeError::typ()
+                    .with_message(format!("could not open file `{specifier}`"))
+                    .with_cause(JsError::from_rust(e))
+            })?;
+            let module = Module::parse(source, None, ctx).map_err(|e| {
+                JsNativeError::typ()
+                    .with_message(format!("could not parse module `{specifier}`"))
+                    .with_cause(e)
+            })?;
+            this.insert(path, module.clone());
+            Ok(module)
+        }
+
+        finish_load(f(self, referrer, specifier, ctx), ctx);
+    }
+
+    fn register_module(&self, specifier: JsString, module: Module) {
+        self.insert(PathBuf::from(specifier.to_std_string_escaped()), module);
+    }
+
+    fn get_module(&self, specifier: JsString) -> Option<Module> {
+        self.get(specifier.to_std_string_escaped().as_ref())
     }
 }
 
