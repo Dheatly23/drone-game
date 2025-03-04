@@ -67,9 +67,38 @@ func _ready() -> void:
 		level.init_empty()
 
 func _process(delta: float) -> void:
+	var level: Level = %Level
+	if %Camera.is_locked():
+		var d = level.block_entities.get(%DroneEdit.sel_uuid)
+		if d != null:
+			var command = null
+
+			var is_forward := Input.is_action_just_pressed("move_forward")
+			var is_back := Input.is_action_just_pressed("move_back")
+			var is_left := Input.is_action_just_pressed("move_left")
+			var is_right := Input.is_action_just_pressed("move_right")
+			var is_up := Input.is_action_just_pressed("move_up")
+			var is_down := Input.is_action_just_pressed("move_down")
+
+			if is_up and not is_down:
+				command = level.level_query.query_command(&"command_move_up")
+			elif is_down and not is_up:
+				command = level.level_query.query_command(&"command_move_down")
+			elif is_forward and not is_back:
+				command = level.level_query.query_command(&"command_move_forward")
+			elif is_back and not is_forward:
+				command = level.level_query.query_command(&"command_move_back")
+			elif is_left and not is_right:
+				command = level.level_query.query_command(&"command_move_left")
+			elif is_right and not is_left:
+				command = level.level_query.query_command(&"command_move_right")
+
+			if command != null:
+				d["node"].buffer_data = command
+
 	if not tick_paused or tick_step:
 		time_acc += delta
-		if time_acc >= tick_delay and (thread == null or not thread.is_alive()) and %Level.tick():
+		if time_acc >= tick_delay and (thread == null or not thread.is_alive()) and level.tick():
 			time_acc = 0.0
 			tick_step = false
 

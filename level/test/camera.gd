@@ -80,6 +80,9 @@ func _unhandled_input(event: InputEvent) -> void:
 		captured = not captured
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED if captured else Input.MOUSE_MODE_VISIBLE
 
+func is_locked() -> bool:
+	return target_lock != ^""
+
 func lock_camera(path: NodePath) -> void:
 	target_lock = path
 

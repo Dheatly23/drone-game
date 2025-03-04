@@ -5,13 +5,18 @@ use std::ptr::null;
 
 use glam::f32::Vec3;
 use hashbrown::hash_map::HashMap;
-use rkyv::api::high::access;
+use rkyv::api::high::{access, to_bytes_in};
 use rkyv::rancor::Panic;
+use rkyv::ser::writer::Buffer;
 
-use level_state::{ArchivedLevelState, BlockEntityHasher, CHUNK_SIZE};
-use util_wasm::read;
+use level_state::{ArchivedLevelState, BlockEntityHasher, CHUNK_SIZE, Command, Direction};
+use util_wasm::{read, write_data};
 
 static mut LEVEL: Option<&'static ArchivedLevelState> = None;
+
+#[repr(C, align(16))]
+struct BufferData([u8; 256]);
+static mut BUFFER: BufferData = BufferData([0; 256]);
 
 #[unsafe(no_mangle)]
 pub extern "C" fn update() {
@@ -19,6 +24,33 @@ pub extern "C" fn update() {
         *(&raw mut LEVEL) = None;
         *(&raw mut LEVEL) = Some(access::<ArchivedLevelState, Panic>(read()).unwrap());
     }
+}
+
+fn write_cmd(cmd: Command) {
+    unsafe {
+        let buffer =
+            to_bytes_in::<_, Panic>(&cmd, Buffer::from(&mut *(&raw mut BUFFER.0))).unwrap();
+        write_data(buffer.as_ptr(), buffer.len() as _);
+    }
+}
+
+macro_rules! command_gen {
+    ($($f:ident => $e:expr),* $(,)?) => {$(
+        #[unsafe(no_mangle)]
+        pub extern "C" fn $f() {
+            write_cmd($e);
+        }
+    )*};
+}
+
+command_gen! {
+    command_noop => Command::Noop,
+    command_move_up => Command::Move(Direction::Up),
+    command_move_down => Command::Move(Direction::Down),
+    command_move_left => Command::Move(Direction::Left),
+    command_move_right => Command::Move(Direction::Right),
+    command_move_forward => Command::Move(Direction::Forward),
+    command_move_back => Command::Move(Direction::Back),
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]

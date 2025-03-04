@@ -19,6 +19,11 @@ extends Node
 				results = [WasmHelper.TYPE_I64],
 				callable = __wasm_read_buffer,
 			},
+			"write_data": {
+				params = [WasmHelper.TYPE_I32, WasmHelper.TYPE_I64],
+				results = [],
+				callable = __wasm_write_buffer,
+			},
 		},
 	},
 	{
@@ -27,6 +32,7 @@ extends Node
 	},
 )
 var level_data := PackedByteArray()
+var buffer_data :=PackedByteArray()
 var crypto: Crypto
 
 func update_level(data: PackedByteArray) -> void:
@@ -57,6 +63,11 @@ func query_ray(pos: Vector3, norm: Vector3) -> Dictionary:
 	ret.make_read_only()
 	return ret
 
+func query_command(name: StringName) -> PackedByteArray:
+	buffer_data = PackedByteArray()
+	wasm_instance.call_wasm(name, [])
+	return buffer_data
+
 func __wasm_random(p: int, n: int) -> void:
 	wasm_instance.memory_write(p, crypto.generate_random_bytes(n))
 
@@ -66,6 +77,9 @@ func __wasm_read_buffer(p: int, n: int) -> int:
 		return 0
 	wasm_instance.memory_write(p, level_data)
 	return len(level_data)
+
+func __wasm_write_buffer(p: int, n: int) -> void:
+	buffer_data = wasm_instance.memory_read(p, n)
 
 func __wasm_log(p: int, n: int) -> void:
 	print(wasm_instance.memory_read(p, n).get_string_from_utf8())
