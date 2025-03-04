@@ -94,7 +94,7 @@ func _process(delta: float) -> void:
 				command = level.level_query.query_command(&"command_move_right")
 
 			if command != null:
-				d["node"].buffer_data = command
+				d["node"].submit_command(command)
 
 	if not tick_paused or tick_step:
 		time_acc += delta

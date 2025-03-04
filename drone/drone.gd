@@ -4,11 +4,13 @@ extends Node3D
 
 var wasm_instance: WasmInstance
 var buffer_data := PackedByteArray()
+var mutex := Mutex.new()
 
 var channel_ids := {}
 var channels: Array[Dictionary] = []
 
 func initialize_wasm(module: WasmModule, config: Dictionary) -> void:
+	mutex.lock()
 	wasm_instance = WasmInstance.new().initialize(
 		module,
 		{
@@ -53,6 +55,20 @@ func initialize_wasm(module: WasmModule, config: Dictionary) -> void:
 		config,
 	)
 	wasm_instance.call_wasm(&"init", [uuid.x, uuid.y, uuid.z, uuid.w])
+	mutex.unlock()
+
+func deinitialize_wasm() -> void:
+	mutex.lock()
+	wasm_instance = null
+	mutex.unlock()
+
+func is_wasm_initialized() -> bool:
+	return wasm_instance != null
+
+func submit_command(cmd: PackedByteArray) -> void:
+	mutex.lock()
+	buffer_data = cmd
+	mutex.unlock()
 
 func update_data(data: Dictionary) -> void:
 	position = Vector3(data["coord"])
@@ -62,12 +78,14 @@ func tick(level_data: PackedByteArray) -> PackedByteArray:
 		v[&"send"].fill(null)
 		v[&"send_len"] = 0
 
+	mutex.lock()
 	if wasm_instance != null:
 		buffer_data = level_data
 		wasm_instance.call_wasm(&"tick", [])
 
 	var ret := buffer_data
 	buffer_data = PackedByteArray()
+	mutex.unlock()
 	return ret
 
 func _ready() -> void:

@@ -24,8 +24,14 @@ var is_exec := false
 
 var wasi_ctx := WasiContext.new().initialize({})
 
+func _process(_delta: float) -> void:
+	var exists := lvl.block_entities.has(sel_uuid)
+	exec_btn.disabled = not exists
+	lock_btn.disabled = not exists
+
 func select_drone(uuid) -> void:
-	if uuid == null:
+	var data = lvl.block_entities.get(uuid) if uuid != null else null
+	if data == null:
 		sel_uuid = Vector4i.ZERO
 		uuid_txt.text = ""
 		exec_btn.disabled = true
@@ -43,9 +49,7 @@ func select_drone(uuid) -> void:
 	exec_btn.disabled = false
 	lock_btn.disabled = false
 	camera_lock_toggled()
-	var data: Dictionary = lvl.block_entities[sel_uuid]
-	var n = data["node"]
-	is_exec = n.wasm_instance != null
+	is_exec = data["node"].is_wasm_initialized()
 	if is_exec:
 		exec_btn.text = "Stop Executing"
 	else:
@@ -57,11 +61,10 @@ func add_argument() -> void:
 	args_lst.move_child(node, -2)
 
 func exec_toggled() -> void:
-	var data: Dictionary = lvl.block_entities[sel_uuid]
-	var n = data["node"]
+	var n = lvl.block_entities[sel_uuid]["node"]
 
 	if is_exec:
-		n.wasm_instance = null
+		n.deinitialize_wasm()
 	elif wasm_lst.selected != -1:
 		var args: Array = [wasm_lst.get_item_text(wasm_lst.selected)]
 		for i in range(args_lst.get_child_count() - 1):
@@ -82,7 +85,7 @@ func exec_toggled() -> void:
 			},
 		)
 
-	is_exec = n.wasm_instance != null
+	is_exec = n["node"].is_wasm_initialized()
 	if is_exec:
 		exec_btn.text = "Stop Executing"
 	else:
@@ -91,14 +94,10 @@ func exec_toggled() -> void:
 func camera_lock_toggled() -> void:
 	if lock_btn.button_pressed:
 		lock_btn.text = "Locked"
-		var node: Node = lvl.block_entities[sel_uuid]["node"]
-		if node != null:
-			camera_locked.emit(node.get_path())
-			return
+		camera_locked.emit(lvl.block_entities[sel_uuid]["node"].get_path())
 	else:
 		lock_btn.text = "Unlocked"
-
-	camera_unlocked.emit()
+		camera_unlocked.emit()
 
 func _ready() -> void:
 	wasi_ctx.stdout_emit.connect(__log)
