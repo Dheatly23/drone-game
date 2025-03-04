@@ -7,9 +7,11 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 
-[node name="Arg" type="LineEdit" parent="."]
+[node name="Arg" type="TextEdit" parent="."]
 layout_mode = 2
 size_flags_horizontal = 3
+placeholder_text = "Argument"
+scroll_fit_content_height = true
 
 [node name="Remove" type="Button" parent="."]
 layout_mode = 2

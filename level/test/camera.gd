@@ -3,6 +3,7 @@ extends Camera3D
 const LOOK_VELOCITY := tan(deg_to_rad(75. / 2))
 const MOVE_VELOCITY := 10.0
 
+@export_node_path("Node3D") var target_lock: NodePath
 @export_node_path("Node3D") var select_box: NodePath
 @export_node_path("Level") var level: NodePath
 @export_node_path("Label") var select_label: NodePath
@@ -38,7 +39,10 @@ func _process(delta: float) -> void:
 	var qy := Quaternion(Vector3.LEFT, rot_y)
 	quaternion = qx * qy
 
-	if captured:
+	var target: Node3D = get_node_or_null(target_lock)
+	if target != null:
+		position = target.position + Vector3.ONE * 0.5 + basis * (Vector3.BACK * 5)
+	elif captured:
 		position += (qx * (
 			Vector3.FORWARD * (Input.get_action_strength("move_forward") - Input.get_action_strength("move_back")) +
 			Vector3.LEFT * (Input.get_action_strength("move_left") - Input.get_action_strength("move_right"))
@@ -75,3 +79,9 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action("release_capture") and event.is_released():
 		captured = not captured
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED if captured else Input.MOUSE_MODE_VISIBLE
+
+func lock_camera(path: NodePath) -> void:
+	target_lock = path
+
+func unlock_camera() -> void:
+	target_lock = ^""

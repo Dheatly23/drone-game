@@ -1,7 +1,11 @@
 extends Node
 
+signal camera_locked(path: NodePath)
+signal camera_unlocked()
+
 @export_node_path("Level") var level
 @export_node_path("LineEdit") var uuid_text
+@export_node_path("CheckButton") var camera_lock_button
 @export_node_path("OptionButton") var wasm_list
 @export_node_path("Node") var args_node
 @export_node_path("Button") var exec_button
@@ -10,6 +14,7 @@ extends Node
 
 @onready var lvl: Level = get_node(level)
 @onready var uuid_txt: LineEdit = get_node(uuid_text)
+@onready var lock_btn: CheckButton = get_node(camera_lock_button)
 @onready var wasm_lst: OptionButton = get_node(wasm_list)
 @onready var args_lst := get_node(args_node)
 @onready var exec_btn: Button = get_node(exec_button)
@@ -25,6 +30,7 @@ func select_drone(uuid) -> void:
 		uuid_txt.text = ""
 		exec_btn.disabled = true
 		exec_btn.text = "Execute"
+		lock_btn.disabled = true
 		return
 
 	sel_uuid = uuid
@@ -35,6 +41,8 @@ func select_drone(uuid) -> void:
 		sel_uuid.w & 0xffff_ffff,
 	]
 	exec_btn.disabled = false
+	lock_btn.disabled = false
+	camera_lock_toggled()
 	var data: Dictionary = lvl.block_entities[sel_uuid]
 	var n = data["node"]
 	is_exec = n.wasm_instance != null
@@ -79,6 +87,18 @@ func exec_toggled() -> void:
 		exec_btn.text = "Stop Executing"
 	else:
 		exec_btn.text = "Execute"
+
+func camera_lock_toggled() -> void:
+	if lock_btn.button_pressed:
+		lock_btn.text = "Locked"
+		var node: Node = lvl.block_entities[sel_uuid]["node"]
+		if node != null:
+			camera_locked.emit(node.get_path())
+			return
+	else:
+		lock_btn.text = "Unlocked"
+
+	camera_unlocked.emit()
 
 func _ready() -> void:
 	wasi_ctx.stdout_emit.connect(__log)

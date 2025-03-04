@@ -125,6 +125,7 @@ layout_mode = 2
 script = ExtResource("6_46i7v")
 level = NodePath("../../../Level")
 uuid_text = NodePath("VBox/Grid/UuidTxt")
+camera_lock_button = NodePath("VBox/Grid/CamLockBtn")
 wasm_list = NodePath("VBox/Grid/WasmLst")
 args_node = NodePath("VBox/Grid/ArgsScr/VBox")
 exec_button = NodePath("VBox/ExecBtn")
@@ -147,6 +148,14 @@ size_flags_horizontal = 3
 size_flags_vertical = 3
 placeholder_text = "None"
 editable = false
+
+[node name="CamLockLbl" type="Label" parent="HUD/TopRight/DroneEdit/VBox/Grid"]
+layout_mode = 2
+text = "Lock Camera:"
+
+[node name="CamLockBtn" type="CheckButton" parent="HUD/TopRight/DroneEdit/VBox/Grid"]
+layout_mode = 2
+text = "Unlocked"
 
 [node name="WasmLbl" type="Label" parent="HUD/TopRight/DroneEdit/VBox/Grid"]
 layout_mode = 2
@@ -218,6 +227,9 @@ layout_mode = 2
 text = "Step"
 
 [connection signal="tick_processed" from="Level" to="." method="__tick_processed"]
+[connection signal="camera_locked" from="HUD/TopRight/DroneEdit" to="Camera" method="lock_camera"]
+[connection signal="camera_unlocked" from="HUD/TopRight/DroneEdit" to="Camera" method="unlock_camera"]
+[connection signal="pressed" from="HUD/TopRight/DroneEdit/VBox/Grid/CamLockBtn" to="HUD/TopRight/DroneEdit" method="camera_lock_toggled"]
 [connection signal="pressed" from="HUD/TopRight/DroneEdit/VBox/Grid/ArgsScr/VBox/AddBtn" to="HUD/TopRight/DroneEdit" method="add_argument"]
 [connection signal="pressed" from="HUD/TopRight/DroneEdit/VBox/ExecBtn" to="HUD/TopRight/DroneEdit" method="exec_toggled"]
 [connection signal="toggled" from="HUD/Bottom/HBox/PauseBtn" to="." method="__pause_toggled"]
