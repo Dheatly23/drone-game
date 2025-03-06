@@ -1,6 +1,6 @@
 [gd_scene load_steps=2 format=3 uid="uid://lvyeachixp2"]
 
-[ext_resource type="Script" path="res://level/pause/pause.gd" id="1_ccamv"]
+[ext_resource type="Script" uid="uid://bwft60f6fj2x1" path="res://level/pause/pause.gd" id="1_ccamv"]
 
 [node name="Pause" type="CanvasLayer"]
 layer = 10

@@ -1,13 +1,13 @@
 [gd_scene load_steps=14 format=3 uid="uid://rxwdcxd3jib"]
 
-[ext_resource type="Script" path="res://level/test/test_scene.gd" id="1_es4cw"]
+[ext_resource type="Script" uid="uid://bwh61hxbupqwm" path="res://level/test/test_scene.gd" id="1_es4cw"]
 [ext_resource type="PackedScene" uid="uid://c7px4aj3vkc0j" path="res://level/level.tscn" id="1_xn46c"]
 [ext_resource type="PackedScene" uid="uid://lvyeachixp2" path="res://level/pause/pause.tscn" id="2_3m5vm"]
-[ext_resource type="WasmModule" uid="uid://c4qaie2mgfrd3" path="res://wasm/level_gen.wasm" id="2_bl67x"]
-[ext_resource type="Script" path="res://level/test/camera.gd" id="5_6m5dp"]
-[ext_resource type="Script" path="res://level/test/drone_edit.gd" id="6_46i7v"]
-[ext_resource type="WasmModule" uid="uid://1idgx7hmk24a" path="res://wasm/drone_test_simple.wasm" id="7_uw8xf"]
-[ext_resource type="WasmModule" uid="uid://bhxridj7fl77f" path="res://wasm/drone_js.wasm" id="8_qc1lv"]
+[ext_resource type="WasmModule" uid="uid://c4qaie2mgfrd3" path="res://wasm/level_gen.wasm" id="2_3q7sg"]
+[ext_resource type="Script" uid="uid://b8wuk2kdgr8pi" path="res://level/test/camera.gd" id="5_6m5dp"]
+[ext_resource type="Script" uid="uid://c1kejmefnh02r" path="res://level/test/drone_edit.gd" id="6_46i7v"]
+[ext_resource type="WasmModule" uid="uid://1idgx7hmk24a" path="res://wasm/drone_test_simple.wasm" id="7_3o1y0"]
+[ext_resource type="WasmModule" uid="uid://bhxridj7fl77f" path="res://wasm/drone_js.wasm" id="8_fip3s"]
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_s631d"]
 transparency = 1
@@ -33,7 +33,7 @@ glow_enabled = true
 
 [node name="Test Scene" type="Node3D"]
 script = ExtResource("1_es4cw")
-level_gen = ExtResource("2_bl67x")
+level_gen = ExtResource("2_3q7sg")
 tick_delay = 0.05
 
 [node name="Level" parent="." instance=ExtResource("1_xn46c")]
@@ -129,7 +129,7 @@ camera_lock_button = NodePath("VBox/Grid/CamLockBtn")
 wasm_list = NodePath("VBox/Grid/WasmLst")
 args_node = NodePath("VBox/Grid/ArgsScr/VBox")
 exec_button = NodePath("VBox/ExecBtn")
-wasm_modules = Array[WasmModule]([ExtResource("7_uw8xf"), ExtResource("8_qc1lv")])
+wasm_modules = Array[WasmModule]([ExtResource("7_3o1y0"), ExtResource("8_fip3s")])
 
 [node name="VBox" type="VBoxContainer" parent="HUD/TopRight/DroneEdit"]
 layout_mode = 2
@@ -166,6 +166,7 @@ layout_mode = 2
 size_flags_horizontal = 3
 item_count = 2
 popup/item_0/text = "drone_test_simple.wasm"
+popup/item_0/id = 0
 popup/item_1/text = "drone_js.wasm"
 popup/item_1/id = 1
 

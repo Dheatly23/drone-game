@@ -85,7 +85,7 @@ func exec_toggled() -> void:
 			},
 		)
 
-	is_exec = n["node"].is_wasm_initialized()
+	is_exec = n.is_wasm_initialized()
 	if is_exec:
 		exec_btn.text = "Stop Executing"
 	else:

@@ -1,8 +1,8 @@
 [gd_scene load_steps=4 format=3 uid="uid://c7px4aj3vkc0j"]
 
-[ext_resource type="Script" path="res://level/level.gd" id="1_2xasv"]
-[ext_resource type="Script" path="res://level/multimesh_controller.gd" id="3_pdm1g"]
-[ext_resource type="Script" path="res://level/query.gd" id="3_r57ey"]
+[ext_resource type="Script" uid="uid://docs5j8j4qj6e" path="res://level/level.gd" id="1_2xasv"]
+[ext_resource type="Script" uid="uid://1rnue617xw4w" path="res://level/multimesh_controller.gd" id="3_pdm1g"]
+[ext_resource type="Script" uid="uid://cgfg3tfkfv6hf" path="res://level/query.gd" id="3_r57ey"]
 
 [node name="Level" type="Node3D"]
 process_mode = 1

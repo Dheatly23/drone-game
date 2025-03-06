@@ -1,7 +1,7 @@
 [gd_scene load_steps=4 format=3 uid="uid://bk3iv5bjk7rot"]
 
 [ext_resource type="PackedScene" uid="uid://cyjv01qtt5fwi" path="res://drone/model.obj" id="1_u6t08"]
-[ext_resource type="Script" path="res://drone/drone.gd" id="2_jhw21"]
+[ext_resource type="Script" uid="uid://dk246eokq1h3i" path="res://drone/drone.gd" id="2_jhw21"]
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_sk42m"]
 resource_local_to_scene = true
