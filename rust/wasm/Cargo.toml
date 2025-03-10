@@ -21,6 +21,7 @@ getrandom = "^0.3"
 glam = "^0.30"
 hashbrown = "^0.15"
 rand = "^0.9"
+rand_distr = "^0.5"
 rand_xoshiro = "^0.7"
 uuid = "^1"
 
@@ -31,6 +32,12 @@ util-wasm.path = "util"
 version = "^4"
 features = [
   "derive",
+]
+
+[workspace.dependencies.enumflags2]
+version = "^0.7"
+features = [
+  "std",
 ]
 
 [workspace.dependencies.rkyv]

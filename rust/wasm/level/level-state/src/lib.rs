@@ -1,9 +1,11 @@
 mod block;
 mod drone;
 mod entity;
+mod item;
 
 use std::iter::repeat_with;
 
+use rand::RngCore;
 use rkyv::boxed::ArchivedBox;
 use rkyv::munge::munge;
 use rkyv::rancor::Fallible;
@@ -15,6 +17,7 @@ use rkyv::{Archive, Deserialize, Place, Serialize};
 pub use block::*;
 pub use drone::*;
 pub use entity::*;
+pub use item::*;
 
 #[derive(Debug, Archive, Serialize, Deserialize)]
 pub struct LevelState {
@@ -106,6 +109,31 @@ impl LevelState {
     #[inline(always)]
     pub fn block_entities_mut(&mut self) -> &mut BlockEntities {
         &mut self.entities
+    }
+
+    pub fn get_block(&self, x: usize, y: usize, z: usize) -> Block {
+        self.get_chunk(x / CHUNK_SIZE, y / CHUNK_SIZE, z / CHUNK_SIZE)
+            .get_block(x % CHUNK_SIZE, y % CHUNK_SIZE, z % CHUNK_SIZE)
+            .get()
+    }
+
+    pub fn break_block<R: RngCore>(
+        &mut self,
+        x: usize,
+        y: usize,
+        z: usize,
+        cap: BreakCapability<'_, R>,
+    ) -> Option<Box<[ItemStack]>> {
+        let (id, r) = crate::block::break_drops(self, x, y, z, cap)?;
+        self.get_chunk_mut(x / CHUNK_SIZE, y / CHUNK_SIZE, z / CHUNK_SIZE)
+            .get_block_mut(x % CHUNK_SIZE, y % CHUNK_SIZE, z % CHUNK_SIZE)
+            .set(Block::Air);
+
+        if let Some(id) = id {
+            self.block_entities_mut().remove(&id);
+        }
+
+        Some(r)
     }
 }
 

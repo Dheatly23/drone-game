@@ -1,5 +1,12 @@
+use rand::{Rng, RngCore};
+use rand_distr::Binomial;
 use rkyv::rend::u16_le;
 use rkyv::{Archive, Deserialize, Serialize};
+use uuid::Uuid;
+
+use crate::LevelState;
+use crate::entity::{BlockEntity, BlockEntityData};
+use crate::item::{Item, ItemStack};
 
 #[derive(Debug, Eq, PartialEq, Hash, Archive, Serialize, Deserialize)]
 #[repr(transparent)]
@@ -109,5 +116,67 @@ impl From<Block> for u16 {
     #[inline(always)]
     fn from(v: Block) -> u16 {
         v as u16
+    }
+}
+
+pub struct BreakCapability<'a, R> {
+    rng: &'a mut R,
+
+    silk_touch: bool,
+}
+
+impl<'a, R: RngCore> BreakCapability<'a, R> {
+    pub fn new(rng: &'a mut R) -> Self {
+        Self {
+            rng,
+            silk_touch: false,
+        }
+    }
+
+    pub fn silk_touch(mut self, value: bool) -> Self {
+        self.silk_touch = value;
+        self
+    }
+}
+
+pub(crate) fn break_drops<R: RngCore>(
+    level: &LevelState,
+    x: usize,
+    y: usize,
+    z: usize,
+    cap: BreakCapability<'_, R>,
+) -> Option<(Option<Uuid>, Box<[ItemStack]>)> {
+    match level.get_block(x, y, z) {
+        Block::Grass if cap.silk_touch => Some((None, Box::new([ItemStack::new(Item::Grass, 1)]))),
+        Block::Dirt | Block::Grass => Some((None, Box::new([ItemStack::new(Item::Dirt, 1)]))),
+        Block::IronOre => {
+            let Some((
+                &id,
+                BlockEntity {
+                    data: BlockEntityData::IronOre(data),
+                    ..
+                },
+            )) = level
+                .block_entities()
+                .entries()
+                .find(|(_, be)| be.x == x && be.y == y && be.z == z)
+            else {
+                unreachable!("iron ore block entity should exist");
+            };
+
+            let n = if data.quantity == 0 {
+                0
+            } else {
+                cap.rng.sample(Binomial::new(data.quantity, 0.8).unwrap())
+            };
+            let r: Box<[ItemStack]> = if n == 0 {
+                Box::new([])
+            } else {
+                Box::new([ItemStack::new(Item::IronOre, n)])
+            };
+
+            Some((Some(id), r))
+        }
+        _ => None,
     }
 }
