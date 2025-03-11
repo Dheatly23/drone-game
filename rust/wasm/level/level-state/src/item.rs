@@ -237,16 +237,18 @@ impl ItemSlot {
     }
 
     pub fn transfer_slot(&mut self, src: &mut Self, max: Option<&mut u64>) {
-        if src.is_empty()
+        if matches!(max, Some(0))
+            || src.is_empty()
             || !src.slot_flags.contains(SlotFlags::Extract)
             || !self.slot_flags.contains(SlotFlags::Insert)
         {
             return;
         }
 
-        match (src.item, self.item, max) {
-            (Item::Air, _, _) | (_, _, Some(0)) => (),
-            (_, Item::Air, max) => {
+        match (src.item, self.item) {
+            (Item::Air, _) => (),
+            (_, Item::Air) => {
+                self.item = src.item;
                 if let Some(max) = max {
                     if src.count as u64 > *max {
                         let n = replace(max, 0) as u8;
@@ -263,25 +265,23 @@ impl ItemSlot {
                 }
                 self.count = replace(&mut src.count, 0);
             }
-            (a, b, _) if a != b => (),
-            (_, _, Some(max)) => {
-                if src.count as u64 > *max {
-                    let n = *max as u8;
-                    let t = self.add_item(n);
-                    src.count = src.count - n + t;
-                    *max = t as u64;
+            (a, b) if a != b => (),
+            (_, _) => {
+                if let Some(max) = max {
+                    if src.count as u64 > *max {
+                        let n = *max as u8;
+                        let t = self.add_item(n);
+                        src.count = src.count - n + t;
+                        *max = t as u64;
+                    } else {
+                        let prev = src.count;
+                        src.count = self.add_item(src.count);
+                        *max -= (prev - src.count) as u64;
+                    }
                 } else {
-                    let prev = src.count;
                     src.count = self.add_item(src.count);
-                    *max -= (prev - src.count) as u64;
                 }
 
-                if src.count == 0 && !src.slot_flags.contains(SlotFlags::Typed) {
-                    src.item = Item::Air;
-                }
-            }
-            (_, _, None) => {
-                src.count = self.add_item(src.count);
                 if src.count == 0 && !src.slot_flags.contains(SlotFlags::Typed) {
                     src.item = Item::Air;
                 }
