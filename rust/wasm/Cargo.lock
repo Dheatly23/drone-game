@@ -758,6 +758,7 @@ dependencies = [
  "rand 0.9.0",
  "rand_distr",
  "rkyv",
+ "thiserror",
  "util-wasm",
  "uuid",
 ]

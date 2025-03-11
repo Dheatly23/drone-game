@@ -1,12 +1,14 @@
 use std::fmt::Debug;
 use std::marker::PhantomData;
-use std::mem::replace;
+use std::mem::{replace, swap};
 
-use enumflags2::{BitFlag, BitFlags, bitflags};
+use enumflags2::{BitFlag, BitFlags, bitflags, make_bitflags};
+use rkyv::bytecheck::Verify;
 use rkyv::primitive::ArchivedU16;
 use rkyv::rancor::{Fallible, Source};
 use rkyv::with::{ArchiveWith, DeserializeWith, Identity, SerializeWith};
 use rkyv::{Archive, Deserialize, Place, Serialize};
+use thiserror::Error;
 
 use crate::block::Block;
 
@@ -118,7 +120,7 @@ where
         field: &F::Archived,
         deserializer: &mut D,
     ) -> Result<BitFlags<T>, D::Error> {
-        BitFlags::from_bits(F::deserialize_with(field, deserializer)?).map_err(D::Error::new)
+        BitFlags::from_bits(F::deserialize_with(field, deserializer)?).map_err(Source::new)
     }
 }
 
@@ -142,11 +144,35 @@ pub enum SlotFlags {
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Archive, Serialize, Deserialize)]
+#[rkyv(bytecheck(verify))]
 pub struct ItemSlot {
     item: Item,
     count: u8,
     #[rkyv(with = BitFlagsDef)]
     pub slot_flags: BitFlags<SlotFlags>,
+}
+
+unsafe impl<C: Fallible + ?Sized> Verify<C> for ArchivedItemSlot
+where
+    C::Error: Source,
+{
+    fn verify(&self, _: &mut C) -> Result<(), C::Error> {
+        #[derive(Error, Debug)]
+        enum ItemSlotVerifyError {
+            #[error("item count overflow (maximum is {max}, got {count})")]
+            CountOverflow { count: u8, max: u8 },
+        }
+
+        let max_count = self.item().stack_count();
+        if self.count > max_count {
+            return Err(Source::new(ItemSlotVerifyError::CountOverflow {
+                count: self.count,
+                max: max_count,
+            }));
+        }
+
+        Ok(())
+    }
 }
 
 impl Default for ItemSlot {
@@ -234,6 +260,33 @@ impl ItemSlot {
         } else {
             replace(&mut self.count, 0)
         }
+    }
+
+    pub fn swap_slot(&mut self, other: &mut Self) {
+        if !self
+            .slot_flags
+            .contains(make_bitflags!(SlotFlags::{Extract | Insert}))
+            || !other
+                .slot_flags
+                .contains(make_bitflags!(SlotFlags::{Extract | Insert}))
+        {
+            return;
+        }
+
+        match (
+            self.slot_flags.contains(SlotFlags::Typed),
+            &mut self.item,
+            other.slot_flags.contains(SlotFlags::Typed),
+            &mut other.item,
+        ) {
+            (_, Item::Air, _, Item::Air) => return,
+            (false, a, false, b) => swap(a, b),
+            (true, i, _, t @ Item::Air) | (_, t @ Item::Air, true, i) => *t = *i,
+            (true, a, _, b) | (_, a, true, b) if a != b => return,
+            _ => (),
+        }
+
+        swap(&mut self.count, &mut other.count);
     }
 
     pub fn transfer_slot(&mut self, src: &mut Self, max: Option<&mut u64>) {
