@@ -282,18 +282,33 @@ impl CentralTower {
         }
     }
 
+    pub fn clone_censored(&self) -> Self {
+        Self {
+            command: Command::Noop,
+            is_command_valid: self.is_command_valid,
+
+            capabilities: self.capabilities.clone(),
+
+            inventory: self.inventory.clone(),
+
+            exec: String::new(),
+            args: Vec::new(),
+            env: Vec::new(),
+        }
+    }
+
     pub fn place(self, level: &mut LevelState, x: usize, y: usize, z: usize) -> Uuid {
         let ret = BlockEntity::new(x, y, z, BlockEntityData::CentralTower(self))
             .place(level, Self::BLOCK);
 
         let (sx, sy, sz) = level.chunk_size();
         for x in
-            (-1isize..1).filter_map(|d| x.checked_add_signed(d).filter(|v| v / CHUNK_SIZE < sx))
+            (-1isize..2).filter_map(|d| x.checked_add_signed(d).filter(|v| v / CHUNK_SIZE < sx))
         {
             for z in
-                (-1isize..1).filter_map(|d| z.checked_add_signed(d).filter(|v| v / CHUNK_SIZE < sz))
+                (-1isize..2).filter_map(|d| z.checked_add_signed(d).filter(|v| v / CHUNK_SIZE < sz))
             {
-                for y in (0isize..2)
+                for y in (0isize..3)
                     .filter_map(|d| y.checked_add_signed(d).filter(|v| v / CHUNK_SIZE < sy))
                 {
                     level.get_block_mut(x, y, z).set(Self::BLOCK);

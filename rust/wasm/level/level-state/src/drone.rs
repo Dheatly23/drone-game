@@ -35,6 +35,18 @@ impl Drone {
             inventory: Box::default(),
         }
     }
+
+    pub fn clone_censored(&self) -> Self {
+        Self {
+            command: Command::Noop,
+            is_command_valid: self.is_command_valid,
+            move_cooldown: self.move_cooldown,
+
+            capabilities: self.capabilities.clone(),
+
+            inventory: self.inventory.clone(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Archive, Serialize, Deserialize)]
@@ -86,6 +98,7 @@ pub enum Command {
 
     Place(InventorySlot, Direction),
     Break(Direction),
+    Mine(Direction),
 
     PullInventory {
         direction: Direction,

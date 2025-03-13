@@ -15,7 +15,18 @@ pub fn process_to_export(dst: &mut LevelState, src: &LevelState) {
          &BlockEntity {
              ref data, x, y, z, ..
          }| match data {
-            BlockEntityData::Drone(_) => Some(BlockEntity::new(x, y, z, data.clone())),
+            BlockEntityData::Drone(v) => Some(BlockEntity::new(
+                x,
+                y,
+                z,
+                BlockEntityData::Drone(v.clone_censored()),
+            )),
+            BlockEntityData::CentralTower(v) => Some(BlockEntity::new(
+                x,
+                y,
+                z,
+                BlockEntityData::CentralTower(v.clone_censored()),
+            )),
             _ => None,
         },
     );

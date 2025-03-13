@@ -12,7 +12,9 @@ use rkyv::rancor::{Failure, Panic};
 use rkyv::ser::writer::Buffer;
 use uuid::Uuid;
 
-use level_state::{Block, BlockEntity, BlockEntityData, CHUNK_SIZE, IronOre, LevelState};
+use level_state::{
+    Block, BlockEntity, BlockEntityData, CHUNK_SIZE, CentralTower, IronOre, LevelState,
+};
 use util_wasm::{read, write};
 
 use crate::entity::update_entity;
@@ -46,42 +48,59 @@ pub extern "C" fn import() {
     // Validation
     for c in level.chunks_mut() {
         for b in c.blocks_mut() {
-            if matches!(b.get(), IronOre::BLOCK) {
+            if matches!(b.get(), IronOre::BLOCK | CentralTower::BLOCK) {
                 b.set(Block::Unknown);
             }
         }
     }
 
-    let mut v: Vec<_> = level
-        .block_entities()
-        .entries()
-        .map(|(&k, v)| {
-            (
-                (v.x, v.y, v.z),
-                k,
-                match v.data {
-                    BlockEntityData::IronOre(_) => Some(IronOre::BLOCK),
-                    BlockEntityData::Drone(_) => None,
-                    _ => Some(Block::Unknown),
-                },
-            )
-        })
-        .collect();
-    v.sort_unstable_by(|(a, _, _), (b, _, _)| a.cmp(b));
+    let mut v = Vec::new();
+    for (
+        &k,
+        &BlockEntity {
+            x, y, z, ref data, ..
+        },
+    ) in level.block_entities().entries()
+    {
+        match data {
+            BlockEntityData::IronOre(_) => v.push(((x, y, z), k, Some(IronOre::BLOCK))),
+            BlockEntityData::Drone(_) => v.push(((x, y, z), k, None)),
+            BlockEntityData::CentralTower(_) => {
+                for x in (-1isize..2).filter_map(|d| x.checked_add_signed(d)) {
+                    for z in (-1isize..2).filter_map(|d| z.checked_add_signed(d)) {
+                        for y in (0isize..3).filter_map(|d| y.checked_add_signed(d)) {
+                            v.push(((x, y, z), k, Some(CentralTower::BLOCK)));
+                        }
+                    }
+                }
+            }
+            _ => v.push(((x, y, z), k, Some(Block::Unknown))),
+        }
+    }
+    v.sort_unstable_by(|(ac, ai, ab), (bc, bi, bb)| {
+        ac.cmp(bc)
+            .then_with(|| ab.map(u16::from).cmp(&bb.map(u16::from)).reverse())
+            .then_with(|| ai.cmp(bi))
+    });
 
     let mut prev = None;
-    for (c @ (x, y, z), id, b) in v {
-        //log(format_args!("{id}: {x} {y} {z}"));
-        if x >= sx || y >= sy || z >= sz || replace(&mut prev, Some(c)).is_some_and(|p| c == p) {
-            level.block_entities_mut().remove(&id);
+    for &(c @ (x, y, z), ref id, _) in &v {
+        if x / CHUNK_SIZE >= sx
+            || y / CHUNK_SIZE >= sy
+            || z / CHUNK_SIZE >= sz
+            || replace(&mut prev, Some(c)).is_some_and(|p| c == p)
+        {
+            level.block_entities_mut().remove(id);
+        }
+    }
+
+    for ((x, y, z), id, b) in v {
+        if level.block_entities().get(&id).is_none() {
             continue;
         }
 
         if let Some(b) = b {
-            level
-                .get_chunk_mut(x / CHUNK_SIZE, y / CHUNK_SIZE, z / CHUNK_SIZE)
-                .get_block_mut(x % CHUNK_SIZE, y % CHUNK_SIZE, z % CHUNK_SIZE)
-                .set(b);
+            level.get_block_mut(x, y, z).set(b);
         }
     }
 
