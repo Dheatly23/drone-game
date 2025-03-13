@@ -7,7 +7,10 @@ use rkyv::with::{AsBox, Skip};
 use rkyv::{Archive, Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::{Block, CHUNK_SIZE, LevelState};
+use crate::block::Block;
+use crate::drone::{Command, Drone, DroneCapability};
+use crate::item::ItemSlot;
+use crate::{CHUNK_SIZE, LevelState};
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub struct BlockEntityHasher;
@@ -200,10 +203,7 @@ impl BlockEntity {
 
     pub(crate) fn place(self, level: &mut LevelState, block: Block) -> Uuid {
         let Self { x, y, z, .. } = self;
-        level
-            .get_chunk_mut(x / CHUNK_SIZE, y / CHUNK_SIZE, z / CHUNK_SIZE)
-            .get_block_mut(x % CHUNK_SIZE, y % CHUNK_SIZE, z % CHUNK_SIZE)
-            .set(block);
+        level.get_block_mut(x, y, z).set(block);
         level.block_entities_mut().add(self)
     }
 }
@@ -213,10 +213,12 @@ impl BlockEntity {
 #[non_exhaustive]
 pub enum BlockEntityData {
     IronOre(IronOre),
-    Drone(#[rkyv(with = AsBox)] crate::drone::Drone),
+    Drone(#[rkyv(with = AsBox)] Drone),
+    CentralTower(#[rkyv(with = AsBox)] CentralTower),
 }
 
 #[derive(Debug, Clone, Copy, Archive, Serialize, Deserialize)]
+#[rkyv(attr(non_exhaustive))]
 #[non_exhaustive]
 pub struct IronOre {
     pub quantity: u64,
@@ -237,5 +239,68 @@ impl IronOre {
 
     pub fn place(self, level: &mut LevelState, x: usize, y: usize, z: usize) -> Uuid {
         BlockEntity::new(x, y, z, BlockEntityData::IronOre(self)).place(level, Self::BLOCK)
+    }
+}
+
+#[derive(Debug, Clone, Archive, Serialize, Deserialize)]
+#[rkyv(attr(non_exhaustive))]
+#[non_exhaustive]
+pub struct CentralTower {
+    pub command: Command,
+    pub is_command_valid: bool,
+
+    pub capabilities: DroneCapability,
+
+    pub inventory: Box<[ItemSlot; 9 * 3]>,
+
+    pub exec: String,
+    pub args: Vec<String>,
+    pub env: Vec<(String, String)>,
+}
+
+impl Default for CentralTower {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl CentralTower {
+    pub const BLOCK: Block = Block::CentralTower;
+
+    pub fn new() -> Self {
+        Self {
+            command: Command::Noop,
+            is_command_valid: true,
+
+            capabilities: DroneCapability::new(),
+
+            inventory: Box::default(),
+
+            exec: String::new(),
+            args: Vec::new(),
+            env: Vec::new(),
+        }
+    }
+
+    pub fn place(self, level: &mut LevelState, x: usize, y: usize, z: usize) -> Uuid {
+        let ret = BlockEntity::new(x, y, z, BlockEntityData::CentralTower(self))
+            .place(level, Self::BLOCK);
+
+        let (sx, sy, sz) = level.chunk_size();
+        for x in
+            (-1isize..1).filter_map(|d| x.checked_add_signed(d).filter(|v| v / CHUNK_SIZE < sx))
+        {
+            for z in
+                (-1isize..1).filter_map(|d| z.checked_add_signed(d).filter(|v| v / CHUNK_SIZE < sz))
+            {
+                for y in (0isize..2)
+                    .filter_map(|d| y.checked_add_signed(d).filter(|v| v / CHUNK_SIZE < sy))
+                {
+                    level.get_block_mut(x, y, z).set(Self::BLOCK);
+                }
+            }
+        }
+
+        ret
     }
 }

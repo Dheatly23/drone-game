@@ -1,12 +1,13 @@
-use std::fmt::Debug;
-use std::marker::PhantomData;
+use std::fmt::{Debug, Formatter, Result as FmtResult};
 use std::mem::{replace, swap};
 
 use enumflags2::{BitFlag, BitFlags, bitflags, make_bitflags};
-use rkyv::bytecheck::Verify;
+use rkyv::bytecheck::{CheckBytes, Verify};
+use rkyv::munge::munge;
 use rkyv::primitive::ArchivedU16;
 use rkyv::rancor::{Fallible, Source};
-use rkyv::with::{ArchiveWith, DeserializeWith, Identity, SerializeWith};
+use rkyv::traits::{NoUndef, Portable};
+use rkyv::with::{ArchiveWith, DeserializeWith, SerializeWith};
 use rkyv::{Archive, Deserialize, Place, Serialize};
 use thiserror::Error;
 
@@ -92,45 +93,145 @@ impl<S: Fallible + ?Sized> Serialize<S> for Item {
     }
 }
 
-struct BitFlagsDef<F = Identity> {
-    _phantom: PhantomData<F>,
-}
+pub(crate) struct BitFlagsDef;
 
-impl<T, F> ArchiveWith<BitFlags<T>> for BitFlagsDef<F>
+#[repr(transparent)]
+pub(crate) struct ArchivedBitFlagsDef<T>
 where
     T: BitFlag,
-    F: ArchiveWith<T::Numeric>,
+    T::Numeric: Archive,
 {
-    type Archived = F::Archived;
-    type Resolver = F::Resolver;
+    inner: <T::Numeric as Archive>::Archived,
+}
+
+impl<T> Debug for ArchivedBitFlagsDef<T>
+where
+    T: BitFlag,
+    T::Numeric: Archive,
+    <T::Numeric as Archive>::Archived: Debug,
+{
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        f.debug_struct("ArchivedBitFlagsDef")
+            .field("inner", &self.inner)
+            .finish()
+    }
+}
+
+impl<T> Clone for ArchivedBitFlagsDef<T>
+where
+    T: BitFlag,
+    T::Numeric: Archive,
+    <T::Numeric as Archive>::Archived: Clone,
+{
+    fn clone(&self) -> Self {
+        Self {
+            inner: self.inner.clone(),
+        }
+    }
+}
+
+impl<T> Copy for ArchivedBitFlagsDef<T>
+where
+    T: BitFlag,
+    T::Numeric: Archive,
+    <T::Numeric as Archive>::Archived: Copy,
+{
+}
+
+unsafe impl<T> Portable for ArchivedBitFlagsDef<T>
+where
+    T: BitFlag,
+    T::Numeric: Archive,
+{
+}
+
+unsafe impl<T> NoUndef for ArchivedBitFlagsDef<T>
+where
+    T: BitFlag,
+    T::Numeric: Archive,
+    <T::Numeric as Archive>::Archived: NoUndef,
+{
+}
+
+unsafe impl<T, C: Fallible + ?Sized> CheckBytes<C> for ArchivedBitFlagsDef<T>
+where
+    T: BitFlag,
+    T::Numeric: Archive,
+    <T::Numeric as Archive>::Archived: CheckBytes<C>,
+{
+    unsafe fn check_bytes(value: *const Self, context: &mut C) -> Result<(), C::Error> {
+        unsafe {
+            CheckBytes::check_bytes(value.cast::<<T::Numeric as Archive>::Archived>(), context)
+        }
+    }
+}
+
+impl<T> ArchivedBitFlagsDef<T>
+where
+    T: BitFlag,
+    T::Numeric: Archive,
+{
+    fn into_bit_flags(self) -> BitFlags<T>
+    where
+        <T::Numeric as Archive>::Archived: Into<T::Numeric>,
+    {
+        BitFlags::from_bits_truncate(self.inner.into())
+    }
+}
+
+#[repr(transparent)]
+pub(crate) struct BitFlagsDefResolver<T>
+where
+    T: BitFlag,
+    T::Numeric: Archive,
+{
+    inner: <T::Numeric as Archive>::Resolver,
+}
+
+impl<T> ArchiveWith<BitFlags<T>> for BitFlagsDef
+where
+    T: BitFlag,
+    T::Numeric: Archive,
+{
+    type Archived = ArchivedBitFlagsDef<T>;
+    type Resolver = BitFlagsDefResolver<T>;
 
     fn resolve_with(field: &BitFlags<T>, resolver: Self::Resolver, out: Place<Self::Archived>) {
-        F::resolve_with(&field.bits(), resolver, out);
+        munge!(let ArchivedBitFlagsDef { inner } = out);
+        field.bits().resolve(resolver.inner, inner);
     }
 }
 
-impl<D: Fallible + ?Sized, T, F> DeserializeWith<F::Archived, BitFlags<T>, D> for BitFlagsDef<F>
-where
-    T: Debug + BitFlag + Send + Sync,
-    T::Numeric: Send + Sync,
-    F: ArchiveWith<T::Numeric> + DeserializeWith<F::Archived, T::Numeric, D>,
-    D::Error: Source,
-{
-    fn deserialize_with(
-        field: &F::Archived,
-        deserializer: &mut D,
-    ) -> Result<BitFlags<T>, D::Error> {
-        BitFlags::from_bits(F::deserialize_with(field, deserializer)?).map_err(Source::new)
-    }
-}
-
-impl<S: Fallible + ?Sized, T, F> SerializeWith<BitFlags<T>, S> for BitFlagsDef<F>
+impl<D: Fallible + ?Sized, T> DeserializeWith<ArchivedBitFlagsDef<T>, BitFlags<T>, D>
+    for BitFlagsDef
 where
     T: BitFlag,
-    F: ArchiveWith<T::Numeric> + SerializeWith<T::Numeric, S>,
+    T::Numeric: Archive,
+    <T::Numeric as Archive>::Archived: Deserialize<T::Numeric, D>,
 {
-    fn serialize_with(field: &BitFlags<T>, serializer: &mut S) -> Result<F::Resolver, S::Error> {
-        F::serialize_with(&field.bits(), serializer)
+    fn deserialize_with(
+        field: &ArchivedBitFlagsDef<T>,
+        deserializer: &mut D,
+    ) -> Result<BitFlags<T>, D::Error> {
+        field
+            .inner
+            .deserialize(deserializer)
+            .map(BitFlags::from_bits_truncate)
+    }
+}
+
+impl<S: Fallible + ?Sized, T> SerializeWith<BitFlags<T>, S> for BitFlagsDef
+where
+    T: BitFlag,
+    T::Numeric: Serialize<S>,
+{
+    fn serialize_with(
+        field: &BitFlags<T>,
+        serializer: &mut S,
+    ) -> Result<BitFlagsDefResolver<T>, S::Error> {
+        Ok(BitFlagsDefResolver {
+            inner: field.bits().serialize(serializer)?,
+        })
     }
 }
 
@@ -460,7 +561,7 @@ impl ArchivedItemSlot {
 
     #[inline(always)]
     pub fn slot_flags(&self) -> BitFlags<SlotFlags> {
-        BitFlags::from_bits_truncate(self.slot_flags)
+        self.slot_flags.into_bit_flags()
     }
 
     #[inline(always)]

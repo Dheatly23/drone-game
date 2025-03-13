@@ -103,6 +103,7 @@ block_def! {
     Dirt = (1, true, true),
     Grass = (2, true, true),
     IronOre = (0x0100, false, true),
+    CentralTower = (0x1000, false, true),
 }
 
 impl From<u16> for Block {
@@ -146,7 +147,7 @@ pub(crate) fn break_drops<R: RngCore>(
     z: usize,
     cap: BreakCapability<'_, R>,
 ) -> Option<(Option<Uuid>, Box<[ItemStack]>)> {
-    match level.get_block(x, y, z) {
+    match level.get_block(x, y, z).get() {
         Block::Grass if cap.silk_touch => Some((None, Box::new([ItemStack::new(Item::Grass, 1)]))),
         Block::Dirt | Block::Grass => Some((None, Box::new([ItemStack::new(Item::Dirt, 1)]))),
         Block::IronOre => {

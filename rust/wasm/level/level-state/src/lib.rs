@@ -7,12 +7,14 @@ use std::iter::repeat_with;
 
 use rand::RngCore;
 use rkyv::boxed::ArchivedBox;
+use rkyv::bytecheck::Verify;
 use rkyv::munge::munge;
-use rkyv::rancor::Fallible;
+use rkyv::rancor::{Fallible, Source};
 use rkyv::seal::Seal;
 use rkyv::vec::ArchivedVec;
 use rkyv::with::{ArchiveWith, DeserializeWith, SerializeWith};
 use rkyv::{Archive, Deserialize, Place, Serialize};
+use thiserror::Error;
 
 pub use block::*;
 pub use drone::*;
@@ -20,6 +22,7 @@ pub use entity::*;
 pub use item::*;
 
 #[derive(Debug, Archive, Serialize, Deserialize)]
+#[rkyv(bytecheck(verify))]
 pub struct LevelState {
     chunks: Vec<Chunk>,
     chunk_x: usize,
@@ -27,6 +30,44 @@ pub struct LevelState {
     chunk_z: usize,
 
     entities: BlockEntities,
+}
+
+unsafe impl<C: Fallible + ?Sized> Verify<C> for ArchivedLevelState
+where
+    C::Error: Source,
+{
+    fn verify(&self, _: &mut C) -> Result<(), C::Error> {
+        #[derive(Error, Debug)]
+        enum LevelStateVerifyError {
+            #[error("level dimension is too big (x: {x}, y: {y}, z: {z})")]
+            DimensionOverflow { x: u32, y: u32, z: u32 },
+            #[error("chunk vector size mismatch (expected {expect}, got {size})")]
+            ChunkSizeMismatch { expect: usize, size: usize },
+        }
+
+        let Some(chunk_len) = self
+            .chunk_x
+            .to_native()
+            .checked_mul(self.chunk_y.to_native())
+            .and_then(|v| {
+                Some(isize::try_from(v.checked_mul(self.chunk_z.to_native())?).ok()? as usize)
+            })
+        else {
+            return Err(Source::new(LevelStateVerifyError::DimensionOverflow {
+                x: self.chunk_x.to_native(),
+                y: self.chunk_y.to_native(),
+                z: self.chunk_z.to_native(),
+            }));
+        };
+        if self.chunks.len() > chunk_len {
+            return Err(Source::new(LevelStateVerifyError::ChunkSizeMismatch {
+                expect: chunk_len,
+                size: self.chunks.len(),
+            }));
+        }
+
+        Ok(())
+    }
 }
 
 impl Default for LevelState {
@@ -111,10 +152,14 @@ impl LevelState {
         &mut self.entities
     }
 
-    pub fn get_block(&self, x: usize, y: usize, z: usize) -> Block {
+    pub fn get_block(&self, x: usize, y: usize, z: usize) -> &BlockWrapper {
         self.get_chunk(x / CHUNK_SIZE, y / CHUNK_SIZE, z / CHUNK_SIZE)
             .get_block(x % CHUNK_SIZE, y % CHUNK_SIZE, z % CHUNK_SIZE)
-            .get()
+    }
+
+    pub fn get_block_mut(&mut self, x: usize, y: usize, z: usize) -> &mut BlockWrapper {
+        self.get_chunk_mut(x / CHUNK_SIZE, y / CHUNK_SIZE, z / CHUNK_SIZE)
+            .get_block_mut(x % CHUNK_SIZE, y % CHUNK_SIZE, z % CHUNK_SIZE)
     }
 
     pub fn break_block<R: RngCore>(
@@ -184,6 +229,21 @@ impl ArchivedLevelState {
         let i = this.get_index(x, y, z).unwrap();
         munge!(let Self { chunks, .. } = this);
         ArchivedVec::as_slice_seal(chunks).index(i)
+    }
+
+    pub fn get_block(&self, x: usize, y: usize, z: usize) -> &ArchivedBlockWrapper {
+        self.get_chunk(x / CHUNK_SIZE, y / CHUNK_SIZE, z / CHUNK_SIZE)
+            .get_block(x % CHUNK_SIZE, y % CHUNK_SIZE, z % CHUNK_SIZE)
+    }
+
+    pub fn get_block_mut(
+        this: Seal<'_, Self>,
+        x: usize,
+        y: usize,
+        z: usize,
+    ) -> &'_ mut ArchivedBlockWrapper {
+        let c = Self::get_chunk_mut(this, x / CHUNK_SIZE, y / CHUNK_SIZE, z / CHUNK_SIZE);
+        ArchivedChunk::get_block_mut(c, x % CHUNK_SIZE, y % CHUNK_SIZE, z % CHUNK_SIZE)
     }
 
     #[inline(always)]
