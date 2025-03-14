@@ -1,6 +1,5 @@
 use std::iter::repeat;
-use std::marker::PhantomData;
-use std::mem::{MaybeUninit, size_of};
+use std::mem::{MaybeUninit, size_of_val};
 use std::ptr::{dangling, write_unaligned};
 
 use glam::f32::{Vec2, Vec3, Vec4};
@@ -8,54 +7,7 @@ use glam::f32::{Vec2, Vec3, Vec4};
 use level_state::{Block, CHUNK_SIZE, LevelState};
 use util_wasm::buffer;
 
-struct WriteBuf<'a, T> {
-    buf: &'a mut [MaybeUninit<u8>],
-    n: usize,
-    _phantom: PhantomData<T>,
-}
-
-impl<'a, T> WriteBuf<'a, T> {
-    const fn new(buf: &'a mut [MaybeUninit<u8>]) -> Self {
-        Self {
-            buf,
-            n: 0,
-            _phantom: PhantomData,
-        }
-    }
-
-    fn len(&self) -> usize {
-        self.n
-    }
-
-    fn as_ptr(&self) -> *const T {
-        self.buf as *const [MaybeUninit<u8>] as *const T
-    }
-
-    fn push(&mut self, value: T) {
-        let size = size_of::<T>();
-        let off = self.n * size;
-        self.n += 1;
-
-        if size == 0 {
-            return;
-        }
-
-        unsafe {
-            write_unaligned(&raw mut self.buf[off..off + size] as *mut T, value);
-        }
-    }
-}
-
-impl<T> Extend<T> for WriteBuf<'_, T> {
-    fn extend<It>(&mut self, it: It)
-    where
-        It: IntoIterator<Item = T>,
-    {
-        for v in it {
-            self.push(v);
-        }
-    }
-}
+use crate::util::WriteBuf;
 
 struct Render<'a> {
     vertex: WriteBuf<'a, Vec3>,

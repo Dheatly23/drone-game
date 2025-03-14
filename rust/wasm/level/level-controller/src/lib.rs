@@ -4,6 +4,7 @@ mod entity;
 mod process_export;
 mod render;
 mod update;
+mod util;
 
 use std::mem::replace;
 
