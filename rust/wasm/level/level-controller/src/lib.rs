@@ -94,6 +94,20 @@ pub extern "C" fn import() {
         }
     }
 
+    if let Some(min) = level
+        .block_entities()
+        .entries()
+        .filter_map(|(&k, v)| match v.data {
+            BlockEntityData::CentralTower(_) => Some(k),
+            _ => None,
+        })
+        .min()
+    {
+        level
+            .block_entities_mut()
+            .remove_if(|k, v| *k != min && matches!(v.data, BlockEntityData::CentralTower(_)));
+    }
+
     for ((x, y, z), id, b) in v {
         if level.block_entities().get(&id).is_none() {
             continue;

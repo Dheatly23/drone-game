@@ -89,6 +89,10 @@ impl BlockEntities {
         ret
     }
 
+    pub fn remove_if<F: FnMut(&Uuid, &mut BlockEntity) -> bool>(&mut self, f: F) {
+        self.grave.extend(self.data.extract_if(f).map(|(k, _)| k));
+    }
+
     #[inline(always)]
     pub fn clear_grave(&mut self) {
         self.grave.clear();
