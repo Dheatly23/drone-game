@@ -1,5 +1,5 @@
 use enumflags2::{BitFlags, bitflags};
-use rkyv::with::Niche;
+use rkyv::with::{Niche, Skip};
 use rkyv::{Archive, Deserialize, Serialize};
 
 use crate::item::{BitFlagsDef, ItemSlot};
@@ -8,13 +8,14 @@ use crate::item::{BitFlagsDef, ItemSlot};
 #[rkyv(attr(non_exhaustive))]
 #[non_exhaustive]
 pub struct Drone {
+    #[rkyv(with = Skip)]
     pub command: Command,
     pub is_command_valid: bool,
     pub move_cooldown: usize,
 
     pub capabilities: DroneCapability,
 
-    pub inventory: Box<[ItemSlot; 9 * 3]>,
+    pub inventory: [ItemSlot; 9 * 3],
 }
 
 impl Default for Drone {
@@ -32,7 +33,7 @@ impl Drone {
 
             capabilities: DroneCapability::new(),
 
-            inventory: Box::default(),
+            inventory: Default::default(),
         }
     }
 
@@ -106,6 +107,7 @@ pub enum Command {
         src_slot: usize,
         dst_inv: InventoryType,
         dst_slot: usize,
+        count: u8,
     },
     PushInventory {
         direction: Direction,
@@ -113,6 +115,7 @@ pub enum Command {
         src_slot: usize,
         dst_inv: InventoryType,
         dst_slot: usize,
+        count: u8,
     },
     InventoryOps(Vec<InventoryOp>),
 
@@ -125,6 +128,8 @@ pub enum Command {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Archive, Serialize, Deserialize)]
+#[rkyv(attr(non_exhaustive))]
+#[non_exhaustive]
 pub enum Direction {
     // Cardinal
     Up,
@@ -165,6 +170,8 @@ pub struct InventorySlot {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Archive, Serialize, Deserialize)]
+#[rkyv(attr(non_exhaustive))]
+#[non_exhaustive]
 pub enum InventoryOp {
     Swap {
         src: InventorySlot,
@@ -173,13 +180,16 @@ pub enum InventoryOp {
     Transfer {
         src: InventorySlot,
         dst: InventorySlot,
+        count: u8,
     },
     Pull {
         src: InventoryType,
         dst: InventorySlot,
+        count: u64,
     },
     Push {
         dst: InventoryType,
         src: InventorySlot,
+        count: u64,
     },
 }

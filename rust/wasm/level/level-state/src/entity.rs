@@ -7,10 +7,10 @@ use rkyv::with::{AsBox, Skip};
 use rkyv::{Archive, Deserialize, Serialize};
 use uuid::Uuid;
 
+use crate::LevelState;
 use crate::block::Block;
 use crate::drone::{Command, Drone, DroneCapability};
 use crate::item::ItemSlot;
-use crate::{CHUNK_SIZE, LevelState};
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub struct BlockEntityHasher;
@@ -255,7 +255,7 @@ pub struct CentralTower {
 
     pub capabilities: DroneCapability,
 
-    pub inventory: Box<[ItemSlot; 9 * 3]>,
+    pub inventory: [ItemSlot; 9 * 3],
 
     pub exec: String,
     pub args: Vec<String>,
@@ -269,8 +269,6 @@ impl Default for CentralTower {
 }
 
 impl CentralTower {
-    pub const BLOCK: Block = Block::CentralTower;
-
     pub fn new() -> Self {
         Self {
             command: Command::Noop,
@@ -278,7 +276,7 @@ impl CentralTower {
 
             capabilities: DroneCapability::new(),
 
-            inventory: Box::default(),
+            inventory: Default::default(),
 
             exec: String::new(),
             args: Vec::new(),
@@ -301,25 +299,36 @@ impl CentralTower {
         }
     }
 
-    pub fn place(self, level: &mut LevelState, x: usize, y: usize, z: usize) -> Uuid {
-        let ret = BlockEntity::new(x, y, z, BlockEntityData::CentralTower(self))
-            .place(level, Self::BLOCK);
-
-        let (sx, sy, sz) = level.chunk_size();
-        for x in
-            (-1isize..2).filter_map(|d| x.checked_add_signed(d).filter(|v| v / CHUNK_SIZE < sx))
-        {
-            for z in
-                (-1isize..2).filter_map(|d| z.checked_add_signed(d).filter(|v| v / CHUNK_SIZE < sz))
-            {
-                for y in (0isize..3)
-                    .filter_map(|d| y.checked_add_signed(d).filter(|v| v / CHUNK_SIZE < sy))
-                {
-                    level.get_block_mut(x, y, z).set(Self::BLOCK);
-                }
-            }
-        }
-
-        ret
+    pub fn get_central_block_offset(b: Block) -> Option<(isize, isize, isize)> {
+        Some(match b {
+            Block::CentralTower000 => (-1, 0, -1),
+            Block::CentralTower001 => (-1, 0, 0),
+            Block::CentralTower002 => (-1, 0, 1),
+            Block::CentralTower010 => (0, 0, -1),
+            Block::CentralTower011 => (0, 0, 0),
+            Block::CentralTower012 => (0, 0, 1),
+            Block::CentralTower020 => (1, 0, -1),
+            Block::CentralTower021 => (1, 0, 0),
+            Block::CentralTower022 => (1, 0, 1),
+            Block::CentralTower100 => (-1, 1, -1),
+            Block::CentralTower101 => (-1, 1, 0),
+            Block::CentralTower102 => (-1, 1, 1),
+            Block::CentralTower110 => (0, 1, -1),
+            Block::CentralTower111 => (0, 1, 0),
+            Block::CentralTower112 => (0, 1, 1),
+            Block::CentralTower120 => (1, 1, -1),
+            Block::CentralTower121 => (1, 1, 0),
+            Block::CentralTower122 => (1, 1, 1),
+            Block::CentralTower200 => (-1, 2, -1),
+            Block::CentralTower201 => (-1, 2, 0),
+            Block::CentralTower202 => (-1, 2, 1),
+            Block::CentralTower210 => (0, 2, -1),
+            Block::CentralTower211 => (0, 2, 0),
+            Block::CentralTower212 => (0, 2, 1),
+            Block::CentralTower220 => (1, 2, -1),
+            Block::CentralTower221 => (1, 2, 0),
+            Block::CentralTower222 => (1, 2, 1),
+            _ => return None,
+        })
     }
 }

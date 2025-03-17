@@ -494,7 +494,11 @@ impl ItemSlot {
         }
     }
 
-    pub fn transfer_inventory(dst: &mut [Self], src: &mut [Self], mut max: Option<&mut u64>) {
+    pub fn transfer_inventory(
+        dst: &mut [Self],
+        src: &mut [Self],
+        mut max: Option<&mut u64>,
+    ) -> bool {
         if matches!(max, Some(0))
             || !src
                 .iter()
@@ -503,7 +507,7 @@ impl ItemSlot {
                 .iter()
                 .any(|slot| !slot.is_full() && slot.slot_flags.contains(SlotFlags::Insert))
         {
-            return;
+            return false;
         }
 
         // Insert into filled slots
@@ -519,7 +523,7 @@ impl ItemSlot {
 
                 dst.transfer_slot(src, max.as_deref_mut());
                 if matches!(max, Some(0)) {
-                    return;
+                    return false;
                 } else if src.is_empty() {
                     break;
                 }
@@ -527,7 +531,8 @@ impl ItemSlot {
         }
 
         // Insert into empty slots
-        for src in src.iter_mut() {
+        let mut cont = false;
+        'outer: for src in src.iter_mut() {
             if src.is_empty() || !src.slot_flags.contains(SlotFlags::Extract) {
                 continue;
             }
@@ -539,12 +544,16 @@ impl ItemSlot {
 
                 dst.transfer_slot(src, max.as_deref_mut());
                 if matches!(max, Some(0)) {
-                    return;
+                    return false;
                 } else if src.is_empty() {
-                    break;
+                    continue 'outer;
                 }
             }
+
+            cont = true;
         }
+
+        cont
     }
 }
 
@@ -584,5 +593,72 @@ pub struct ItemStack {
 impl ItemStack {
     pub const fn new(item: Item, count: u64) -> Self {
         Self { item, count }
+    }
+
+    pub fn put_slot(&mut self, dst: &mut ItemSlot) {
+        if self.count == 0 || !dst.slot_flags.contains(SlotFlags::Insert) {
+            return;
+        }
+
+        if dst.item == Item::Air {
+            dst.item = self.item;
+        } else if dst.item != self.item {
+            return;
+        }
+        let n = u8::try_from(self.count)
+            .unwrap_or(255)
+            .min(self.item.stack_count());
+        dst.count = n;
+        self.count -= n as u64;
+    }
+
+    pub fn put_inventory(src: &mut [Self], dst: &mut [ItemSlot]) -> bool {
+        let mut cont = false;
+        'outer: for src in src.iter_mut() {
+            if src.count == 0 {
+                continue;
+            }
+
+            for dst in dst.iter_mut() {
+                if dst.is_empty() || !dst.slot_flags.contains(SlotFlags::Insert) {
+                    continue;
+                }
+
+                src.put_slot(dst);
+
+                if src.count == 0 {
+                    continue 'outer;
+                }
+            }
+
+            cont = true;
+        }
+
+        if !cont {
+            return false;
+        }
+
+        cont = false;
+        'outer: for src in src.iter_mut() {
+            if src.count == 0 {
+                continue;
+            }
+
+            for dst in dst.iter_mut() {
+                if !dst.is_empty() || !dst.slot_flags.contains(SlotFlags::Insert) {
+                    continue;
+                }
+
+                src.put_slot(dst);
+
+                if src.count == 0 {
+                    continue 'outer;
+                }
+            }
+
+            cont = true;
+        }
+
+        cont
     }
 }

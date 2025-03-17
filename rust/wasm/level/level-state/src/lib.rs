@@ -170,9 +170,7 @@ impl LevelState {
         cap: BreakCapability<'_, R>,
     ) -> Option<Box<[ItemStack]>> {
         let (id, r) = crate::block::break_drops(self, x, y, z, cap)?;
-        self.get_chunk_mut(x / CHUNK_SIZE, y / CHUNK_SIZE, z / CHUNK_SIZE)
-            .get_block_mut(x % CHUNK_SIZE, y % CHUNK_SIZE, z % CHUNK_SIZE)
-            .set(Block::Air);
+        self.get_block_mut(x, y, z).set(Block::Air);
 
         if let Some(id) = id {
             self.block_entities_mut().remove(&id);

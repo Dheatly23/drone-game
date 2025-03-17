@@ -6,8 +6,8 @@ mod render;
 mod update;
 mod util;
 
-use std::mem::replace;
-
+use rand::prelude::*;
+use rand_xoshiro::Xoshiro256PlusPlus;
 use rkyv::api::high::{from_bytes, to_bytes_in};
 use rkyv::rancor::{Failure, Panic};
 use rkyv::ser::writer::Buffer;
@@ -25,6 +25,11 @@ use crate::update::update;
 
 static mut LEVEL: LevelState = LevelState::new_empty();
 static mut LEVEL_PROCESSED: LevelState = LevelState::new_empty();
+static mut RNG: Option<Xoshiro256PlusPlus> = None;
+
+unsafe fn get_rng<'a>() -> &'a mut Xoshiro256PlusPlus {
+    unsafe { (*(&raw mut RNG)).get_or_insert_with(Xoshiro256PlusPlus::from_os_rng) }
+}
 
 #[unsafe(no_mangle)]
 pub extern "C" fn init(x: u32, y: u32, z: u32) {
@@ -34,6 +39,9 @@ pub extern "C" fn init(x: u32, y: u32, z: u32) {
     *level_processed = LevelState::new_empty();
     *level = LevelState::new(x as _, y as _, z as _);
     *level_processed = LevelState::new(x as _, y as _, z as _);
+    unsafe {
+        *(&raw mut RNG) = None;
+    }
 }
 
 #[unsafe(no_mangle)]
@@ -45,17 +53,64 @@ pub extern "C" fn import() {
     *level = from_bytes::<LevelState, Panic>(unsafe { read() }).unwrap();
     let (sx, sy, sz) = level.chunk_size();
     *level_processed = LevelState::new(sx, sy, sz);
+    unsafe {
+        *(&raw mut RNG) = None;
+    }
 
     // Validation
     for c in level.chunks_mut() {
         for b in c.blocks_mut() {
-            if matches!(b.get(), IronOre::BLOCK | CentralTower::BLOCK) {
+            if matches!(
+                b.get(),
+                IronOre::BLOCK
+                    | Block::CentralTower000
+                    | Block::CentralTower001
+                    | Block::CentralTower002
+                    | Block::CentralTower010
+                    | Block::CentralTower011
+                    | Block::CentralTower012
+                    | Block::CentralTower020
+                    | Block::CentralTower021
+                    | Block::CentralTower022
+                    | Block::CentralTower100
+                    | Block::CentralTower101
+                    | Block::CentralTower102
+                    | Block::CentralTower110
+                    | Block::CentralTower111
+                    | Block::CentralTower112
+                    | Block::CentralTower120
+                    | Block::CentralTower121
+                    | Block::CentralTower122
+                    | Block::CentralTower200
+                    | Block::CentralTower201
+                    | Block::CentralTower202
+                    | Block::CentralTower210
+                    | Block::CentralTower211
+                    | Block::CentralTower212
+                    | Block::CentralTower220
+                    | Block::CentralTower221
+                    | Block::CentralTower222
+            ) {
                 b.set(Block::Unknown);
             }
         }
     }
 
-    let mut v = Vec::new();
+    struct BlockEntityValid {
+        id: Uuid,
+        valid: bool,
+    }
+
+    struct BlockEntitySetter {
+        index: usize,
+        x: usize,
+        y: usize,
+        z: usize,
+        block: Option<Block>,
+    }
+
+    let mut be = Vec::new();
+    let mut bs = Vec::new();
     for (
         &k,
         &BlockEntity {
@@ -63,58 +118,122 @@ pub extern "C" fn import() {
         },
     ) in level.block_entities().entries()
     {
-        match data {
-            BlockEntityData::IronOre(_) => v.push(((x, y, z), k, Some(IronOre::BLOCK))),
-            BlockEntityData::Drone(_) => v.push(((x, y, z), k, None)),
-            BlockEntityData::CentralTower(_) => {
-                for x in (-1isize..2).filter_map(|d| x.checked_add_signed(d)) {
-                    for z in (-1isize..2).filter_map(|d| z.checked_add_signed(d)) {
-                        for y in (0isize..3).filter_map(|d| y.checked_add_signed(d)) {
-                            v.push(((x, y, z), k, Some(CentralTower::BLOCK)));
-                        }
-                    }
-                }
-            }
-            _ => v.push(((x, y, z), k, Some(Block::Unknown))),
-        }
-    }
-    v.sort_unstable_by(|(ac, ai, ab), (bc, bi, bb)| {
-        ac.cmp(bc)
-            .then_with(|| ab.map(u16::from).cmp(&bb.map(u16::from)).reverse())
-            .then_with(|| ai.cmp(bi))
-    });
-
-    let mut prev = None;
-    for &(c @ (x, y, z), ref id, _) in &v {
-        if x / CHUNK_SIZE >= sx
-            || y / CHUNK_SIZE >= sy
-            || z / CHUNK_SIZE >= sz
-            || replace(&mut prev, Some(c)).is_some_and(|p| c == p)
-        {
-            level.block_entities_mut().remove(id);
-        }
-    }
-
-    if let Some(min) = level
-        .block_entities()
-        .entries()
-        .filter_map(|(&k, v)| match v.data {
-            BlockEntityData::CentralTower(_) => Some(k),
-            _ => None,
-        })
-        .min()
-    {
-        level
-            .block_entities_mut()
-            .remove_if(|k, v| *k != min && matches!(v.data, BlockEntityData::CentralTower(_)));
-    }
-
-    for ((x, y, z), id, b) in v {
-        if level.block_entities().get(&id).is_none() {
+        if x / CHUNK_SIZE >= sx || y / CHUNK_SIZE >= sy || z / CHUNK_SIZE >= sz {
+            be.push(BlockEntityValid {
+                id: k,
+                valid: false,
+            });
             continue;
         }
 
-        if let Some(b) = b {
+        match data {
+            BlockEntityData::IronOre(_) => bs.push(BlockEntitySetter {
+                x,
+                y,
+                z,
+                block: Some(IronOre::BLOCK),
+                index: be.len(),
+            }),
+            BlockEntityData::Drone(_) => bs.push(BlockEntitySetter {
+                x,
+                y,
+                z,
+                block: None,
+                index: be.len(),
+            }),
+            BlockEntityData::CentralTower(_) => bs.extend(
+                [
+                    Block::CentralTower000,
+                    Block::CentralTower001,
+                    Block::CentralTower002,
+                    Block::CentralTower010,
+                    Block::CentralTower011,
+                    Block::CentralTower012,
+                    Block::CentralTower020,
+                    Block::CentralTower021,
+                    Block::CentralTower022,
+                    Block::CentralTower100,
+                    Block::CentralTower101,
+                    Block::CentralTower102,
+                    Block::CentralTower110,
+                    Block::CentralTower111,
+                    Block::CentralTower112,
+                    Block::CentralTower120,
+                    Block::CentralTower121,
+                    Block::CentralTower122,
+                    Block::CentralTower200,
+                    Block::CentralTower201,
+                    Block::CentralTower202,
+                    Block::CentralTower210,
+                    Block::CentralTower211,
+                    Block::CentralTower212,
+                    Block::CentralTower220,
+                    Block::CentralTower221,
+                    Block::CentralTower222,
+                ]
+                .into_iter()
+                .filter_map(|b| {
+                    let (dx, dy, dz) = CentralTower::get_central_block_offset(b)?;
+                    let x = x.checked_add_signed(dx)?;
+                    let y = y.checked_add_signed(dy)?;
+                    let z = z.checked_add_signed(dz)?;
+
+                    if x / CHUNK_SIZE >= sx || y / CHUNK_SIZE >= sy || z / CHUNK_SIZE >= sz {
+                        return None;
+                    }
+
+                    Some(BlockEntitySetter {
+                        x,
+                        y,
+                        z,
+                        block: Some(b),
+                        index: be.len(),
+                    })
+                }),
+            ),
+            _ => bs.push(BlockEntitySetter {
+                x,
+                y,
+                z,
+                block: Some(Block::Unknown),
+                index: be.len(),
+            }),
+        }
+
+        be.push(BlockEntityValid { id: k, valid: true });
+    }
+    bs.sort_unstable_by(|a, b| {
+        a.x.cmp(&b.x)
+            .then_with(|| a.y.cmp(&b.y))
+            .then_with(|| a.z.cmp(&b.z))
+            .then_with(|| {
+                a.block
+                    .map(u16::from)
+                    .cmp(&b.block.map(u16::from))
+                    .reverse()
+            })
+            .then_with(|| be[a.index].id.cmp(&be[b.index].id))
+    });
+
+    for i in bs.windows(2) {
+        let p = &i[0];
+        let c = &i[1];
+        if p.x == c.x && p.y == c.y && p.z == c.z {
+            be[c.index].valid = false;
+        }
+    }
+
+    for BlockEntitySetter {
+        x,
+        y,
+        z,
+        index,
+        block,
+    } in bs
+    {
+        if let BlockEntityValid { id, valid: false } = &be[index] {
+            level.block_entities_mut().remove(id);
+        } else if let Some(b) = block {
             level.get_block_mut(x, y, z).set(b);
         }
     }
@@ -196,5 +315,7 @@ pub extern "C" fn set_command(a0: u32, a1: u32, a2: u32, a3: u32) {
 
 #[unsafe(no_mangle)]
 pub extern "C" fn tick() {
-    update(unsafe { &mut *(&raw mut LEVEL) });
+    unsafe {
+        update(&mut *(&raw mut LEVEL), get_rng());
+    }
 }
