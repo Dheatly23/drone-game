@@ -546,18 +546,24 @@ fn drone_command<R: RngCore>(level: &mut LevelState, rng: &mut R) {
             let mut v: Box<[_]> = if is_mine {
                 match level.get_block(x, y, z).get() {
                     Block::IronOre => {
-                        let Some(BlockEntity {
-                            data: BlockEntityData::IronOre(v),
-                            ..
-                        }) = cmap
+                        let Some(
+                            be @ BlockEntity {
+                                data: BlockEntityData::IronOre(_),
+                                ..
+                            },
+                        ) = cmap
                             .get(x, y, z)
                             .and_then(|id| level.block_entities_mut().get_mut(id))
                         else {
                             unreachable!("block entity should be iron ore")
                         };
+                        let BlockEntityData::IronOre(v) = &mut be.data else {
+                            unreachable!("block entity should be iron ore")
+                        };
 
                         if v.quantity > 0 && rng.sample(Bernoulli::new(0.8).unwrap()) {
                             v.quantity -= 1;
+                            be.mark_dirty();
                             Box::new([ItemStack {
                                 item: Item::IronOre,
                                 count: 1,
