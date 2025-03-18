@@ -9,7 +9,7 @@ use uuid::Uuid;
 
 use crate::LevelState;
 use crate::block::Block;
-use crate::drone::{Command, Drone, DroneCapability};
+use crate::drone::{Command, Drone, DroneCapability, ExecutionContext};
 use crate::item::ItemSlot;
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
@@ -257,9 +257,7 @@ pub struct CentralTower {
 
     pub inventory: [ItemSlot; 9 * 3],
 
-    pub exec: String,
-    pub args: Vec<String>,
-    pub env: Vec<(String, String)>,
+    pub exec: Option<ExecutionContext>,
 }
 
 impl Default for CentralTower {
@@ -278,9 +276,7 @@ impl CentralTower {
 
             inventory: Default::default(),
 
-            exec: String::new(),
-            args: Vec::new(),
-            env: Vec::new(),
+            exec: None,
         }
     }
 
@@ -293,9 +289,7 @@ impl CentralTower {
 
             inventory: self.inventory.clone(),
 
-            exec: String::new(),
-            args: Vec::new(),
-            env: Vec::new(),
+            exec: None,
         }
     }
 

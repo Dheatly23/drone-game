@@ -717,6 +717,7 @@ dependencies = [
 name = "level-controller"
 version = "0.1.0"
 dependencies = [
+ "enumflags2",
  "glam",
  "hashbrown 0.15.2",
  "level-state",

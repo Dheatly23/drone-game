@@ -1,7 +1,7 @@
 use std::mem::{MaybeUninit, take, transmute};
 use std::ptr::dangling;
 
-use level_state::{BlockEntityData, LevelState};
+use level_state::{BlockEntityData, ExecutionContext, LevelState};
 use util_wasm::buffer;
 
 use crate::util::WriteBuf;
@@ -14,6 +14,8 @@ unsafe extern "C" {
     fn _entity_iron_ore(a0: u32, a1: u32, a2: u32, a3: u32, x: u32, y: u32, z: u32, qty: u64);
     #[link_name = "entity_drone"]
     fn _entity_drone(a0: u32, a1: u32, a2: u32, a3: u32, x: u32, y: u32, z: u32);
+    #[link_name = "entity_drone_exec"]
+    fn _entity_drone_exec(a0: u32, a1: u32, a2: u32, a3: u32, p: *const ExportCentralTower);
     #[link_name = "entity_central_tower"]
     fn _entity_central_tower(
         a0: u32,
@@ -130,19 +132,32 @@ pub fn update_entity(level: &mut LevelState) {
             BlockEntityData::IronOre(v) => unsafe {
                 _entity_iron_ore(a0, a1, a2, a3, e.x as _, e.y as _, e.z as _, v.quantity)
             },
-            BlockEntityData::Drone(_) => unsafe {
-                _entity_drone(a0, a1, a2, a3, e.x as _, e.y as _, e.z as _)
-            },
-            BlockEntityData::CentralTower(v) => {
-                let exec = take(&mut v.exec);
-                let args = take(&mut v.args);
-                let env = take(&mut v.env);
+            BlockEntityData::Drone(v) => unsafe {
+                _entity_drone(a0, a1, a2, a3, e.x as _, e.y as _, e.z as _);
 
-                unsafe {
-                    let v = write_central_tower(exec, args, env);
-                    _entity_central_tower(a0, a1, a2, a3, e.x as _, e.y as _, e.z as _, &v)
+                if let Some(ExecutionContext {
+                    executable,
+                    args,
+                    env,
+                    ..
+                }) = v.exec.take()
+                {
+                    let v = write_central_tower(executable, args, env);
+                    _entity_drone_exec(a0, a1, a2, a3, &v);
                 }
-            }
+            },
+            BlockEntityData::CentralTower(v) => unsafe {
+                if let Some(ExecutionContext {
+                    executable,
+                    args,
+                    env,
+                    ..
+                }) = v.exec.take()
+                {
+                    let v = write_central_tower(executable, args, env);
+                    _entity_central_tower(a0, a1, a2, a3, e.x as _, e.y as _, e.z as _, &v);
+                }
+            },
             _ => continue,
         }
     }

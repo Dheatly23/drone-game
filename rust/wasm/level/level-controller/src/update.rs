@@ -2,14 +2,15 @@ use std::cell::Cell;
 use std::cmp::Ordering;
 use std::mem::{replace, take};
 
+use enumflags2::BitFlags;
 use rand::distr::Bernoulli;
 use rand::prelude::*;
 use uuid::Uuid;
 
 use level_state::{
     Block, BlockEntity, BlockEntityData, BreakCapability, CHUNK_SIZE, CentralTower, Command,
-    Direction, Drone, DroneCapabilityFlags, InventoryOp, InventoryType, Item, ItemSlot, ItemStack,
-    LevelState,
+    Direction, Drone, DroneCapability, DroneCapabilityFlags, ExecutionContext, InventoryOp,
+    InventoryType, Item, ItemSlot, ItemStack, LevelState,
 };
 use util_wasm::log;
 
@@ -21,83 +22,99 @@ pub fn update<R: RngCore>(level: &mut LevelState, rng: &mut R) {
 }
 
 fn drone_command<R: RngCore>(level: &mut LevelState, rng: &mut R) {
-    let (sx, sy, sz) = level.chunk_size();
-    let (ex, ey, ez) = (sx * CHUNK_SIZE, sy * CHUNK_SIZE, sz * CHUNK_SIZE);
+    let bounds = level.chunk_size();
 
-    let move_coord =
-        |x: usize, y: usize, z: usize, be: Option<&BlockEntityData>, dir: Direction| {
-            let (dx, dy, dz) = match be {
-                Some(BlockEntityData::CentralTower(_)) => match dir {
-                    Direction::Left => (2, 0, 0),
-                    Direction::Up => (0, 3, 0),
-                    Direction::Forward => (0, 0, 2),
-                    Direction::Right => (-2, 0, 0),
-                    Direction::Down => (0, -1, 0),
-                    Direction::Back => (0, 0, -2),
+    fn is_oob(&(sx, sy, sz): &(usize, usize, usize), x: usize, y: usize, z: usize) -> bool {
+        x / CHUNK_SIZE >= sx || y / CHUNK_SIZE >= sy || z / CHUNK_SIZE >= sz
+    }
 
-                    Direction::ForwardLeft => (2, 0, 2),
-                    Direction::ForwardRight => (-2, 0, 2),
-                    Direction::BackLeft => (2, 0, -2),
-                    Direction::BackRight => (-2, 0, -2),
-                    Direction::UpLeft => (2, 3, 0),
-                    Direction::UpRight => (-2, 3, 0),
-                    Direction::UpForward => (0, 3, 2),
-                    Direction::UpBack => (0, 3, -2),
-                    Direction::DownLeft => (2, -1, 0),
-                    Direction::DownRight => (-2, -1, 0),
-                    Direction::DownForward => (0, -1, 2),
-                    Direction::DownBack => (0, -1, -2),
+    fn move_coord(
+        bounds: &(usize, usize, usize),
+        x: usize,
+        y: usize,
+        z: usize,
+        be: Option<&BlockEntityData>,
+        dir: Direction,
+    ) -> Option<(usize, usize, usize)> {
+        let (dx, dy, dz) = match be {
+            Some(BlockEntityData::CentralTower(_)) => match dir {
+                Direction::Left => (2, 0, 0),
+                Direction::Up => (0, 3, 0),
+                Direction::Forward => (0, 0, 2),
+                Direction::Right => (-2, 0, 0),
+                Direction::Down => (0, -1, 0),
+                Direction::Back => (0, 0, -2),
 
-                    _ => return None,
-                },
-                _ => match dir {
-                    Direction::Left => (1, 0, 0),
-                    Direction::Up => (0, 1, 0),
-                    Direction::Forward => (0, 0, 1),
-                    Direction::Right => (-1, 0, 0),
-                    Direction::Down => (0, -1, 0),
-                    Direction::Back => (0, 0, -1),
+                Direction::ForwardLeft => (2, 0, 2),
+                Direction::ForwardRight => (-2, 0, 2),
+                Direction::BackLeft => (2, 0, -2),
+                Direction::BackRight => (-2, 0, -2),
+                Direction::UpLeft => (2, 3, 0),
+                Direction::UpRight => (-2, 3, 0),
+                Direction::UpForward => (0, 3, 2),
+                Direction::UpBack => (0, 3, -2),
+                Direction::DownLeft => (2, -1, 0),
+                Direction::DownRight => (-2, -1, 0),
+                Direction::DownForward => (0, -1, 2),
+                Direction::DownBack => (0, -1, -2),
 
-                    Direction::ForwardLeft => (1, 0, 1),
-                    Direction::ForwardRight => (-1, 0, 1),
-                    Direction::BackLeft => (1, 0, -1),
-                    Direction::BackRight => (-1, 0, -1),
-                    Direction::UpLeft => (1, 1, 0),
-                    Direction::UpRight => (-1, 1, 0),
-                    Direction::UpForward => (0, 1, 1),
-                    Direction::UpBack => (0, 1, -1),
-                    Direction::DownLeft => (1, -1, 0),
-                    Direction::DownRight => (-1, -1, 0),
-                    Direction::DownForward => (0, -1, 1),
-                    Direction::DownBack => (0, -1, -1),
+                _ => return None,
+            },
+            _ => match dir {
+                Direction::Left => (1, 0, 0),
+                Direction::Up => (0, 1, 0),
+                Direction::Forward => (0, 0, 1),
+                Direction::Right => (-1, 0, 0),
+                Direction::Down => (0, -1, 0),
+                Direction::Back => (0, 0, -1),
 
-                    _ => return None,
-                },
-            };
+                Direction::ForwardLeft => (1, 0, 1),
+                Direction::ForwardRight => (-1, 0, 1),
+                Direction::BackLeft => (1, 0, -1),
+                Direction::BackRight => (-1, 0, -1),
+                Direction::UpLeft => (1, 1, 0),
+                Direction::UpRight => (-1, 1, 0),
+                Direction::UpForward => (0, 1, 1),
+                Direction::UpBack => (0, 1, -1),
+                Direction::DownLeft => (1, -1, 0),
+                Direction::DownRight => (-1, -1, 0),
+                Direction::DownForward => (0, -1, 1),
+                Direction::DownBack => (0, -1, -1),
 
-            let x = x.checked_add_signed(dx)?;
-            let y = y.checked_add_signed(dy)?;
-            let z = z.checked_add_signed(dz)?;
-            if x >= ex || y >= ey || z >= ez {
-                return None;
-            }
-            Some((x, y, z))
+                _ => return None,
+            },
         };
 
-    let mut coord_map = level
+        let x = x.checked_add_signed(dx)?;
+        let y = y.checked_add_signed(dy)?;
+        let z = z.checked_add_signed(dz)?;
+        if is_oob(bounds, x, y, z) {
+            return None;
+        }
+        Some((x, y, z))
+    }
+
+    struct CoordMap(Box<[(usize, usize, usize, Uuid)]>);
+
+    impl CoordMap {
+        fn get(&self, x: usize, y: usize, z: usize) -> Option<&Uuid> {
+            let i = self
+                .0
+                .binary_search_by(|(xb, yb, zb, _)| {
+                    x.cmp(xb).then_with(|| y.cmp(yb)).then_with(|| z.cmp(zb))
+                })
+                .ok()?;
+            Some(&self.0[i].3)
+        }
+    }
+
+    let mut cmap = level
         .block_entities()
         .entries()
         .map(|(&id, v)| (v.x, v.y, v.z, id))
-        .collect::<Vec<_>>();
-    coord_map.sort_unstable();
-    let get_coord = move |x: usize, y: usize, z: usize| {
-        coord_map
-            .binary_search_by(|(xb, yb, zb, _)| {
-                x.cmp(xb).then_with(|| y.cmp(yb)).then_with(|| z.cmp(zb))
-            })
-            .ok()
-            .map(|i| coord_map[i].3)
-    };
+        .collect::<Box<[_]>>();
+    cmap.sort_unstable();
+    let cmap = CoordMap(cmap);
 
     fn get_inventory(target: &mut BlockEntityData, ty: InventoryType) -> Option<&mut [ItemSlot]> {
         match ty {
@@ -125,38 +142,43 @@ fn drone_command<R: RngCore>(level: &mut LevelState, rng: &mut R) {
         get_inventory(target, ty)?.get_mut(slot)
     }
 
-    let get_inventory_at =
-        |level: &mut LevelState, x: usize, y: usize, z: usize, ty: InventoryType, slot: usize| {
-            if let Some(r) = get_coord(x, y, z).and_then(|id| {
-                get_slot(&mut level.block_entities_mut().get_mut(&id)?.data, ty, slot)
-            }) {
-                return Some(r as *mut ItemSlot);
+    fn get_inventory_at(
+        cmap: &CoordMap,
+        level: &mut LevelState,
+        x: usize,
+        y: usize,
+        z: usize,
+        ty: InventoryType,
+        slot: usize,
+    ) -> Option<*mut ItemSlot> {
+        if let Some(r) = cmap
+            .get(x, y, z)
+            .and_then(|id| get_slot(&mut level.block_entities_mut().get_mut(id)?.data, ty, slot))
+        {
+            return Some(r as *mut ItemSlot);
+        }
+
+        let b = level.get_block(x, y, z).get();
+        if let Some(r) = CentralTower::get_central_block_offset(b).and_then(|(dx, dy, dz)| {
+            let x = x.checked_add_signed(-dx)?;
+            let y = y.checked_add_signed(-dy)?;
+            let z = z.checked_add_signed(-dz)?;
+
+            if is_oob(&level.chunk_size(), x, y, z) {
+                return None;
             }
 
-            let b = level.get_block(x, y, z).get();
-            if let Some(r) = CentralTower::get_central_block_offset(b).and_then(|(dx, dy, dz)| {
-                let x = x.checked_add_signed(-dx)?;
-                let y = y.checked_add_signed(-dy)?;
-                let z = z.checked_add_signed(-dz)?;
+            get_slot(
+                &mut level.block_entities_mut().get_mut(cmap.get(x, y, z)?)?.data,
+                ty,
+                slot,
+            )
+        }) {
+            return Some(r as *mut ItemSlot);
+        }
 
-                if x >= ex || y >= ey || z >= ez {
-                    return None;
-                }
-
-                get_slot(
-                    &mut level
-                        .block_entities_mut()
-                        .get_mut(&get_coord(x, y, z)?)?
-                        .data,
-                    ty,
-                    slot,
-                )
-            }) {
-                return Some(r as *mut ItemSlot);
-            }
-
-            None
-        };
+        None
+    }
 
     // Inventory ops command
     {
@@ -279,19 +301,25 @@ fn drone_command<R: RngCore>(level: &mut LevelState, rng: &mut R) {
                     dst_slot,
                     count,
                 } => {
-                    let Some((dx, dy, dz)) =
-                        move_coord(x, y, z, this.as_deref().map(|v| &v.data), direction)
-                    else {
+                    let Some((dx, dy, dz)) = move_coord(
+                        &bounds,
+                        x,
+                        y,
+                        z,
+                        this.as_deref().map(|v| &v.data),
+                        direction,
+                    ) else {
                         continue;
                     };
 
-                    let Some(dst) = this
-                        .and_then(|v| get_inventory(&mut v.data, dst_inv)?.get_mut(dst_slot))
-                        .map(|v| v as *mut ItemSlot)
-                    else {
+                    let Some(dst) = this.and_then(|v| {
+                        Some(get_inventory(&mut v.data, dst_inv)?.get_mut(dst_slot)?
+                            as *mut ItemSlot)
+                    }) else {
                         continue;
                     };
-                    let Some(src) = get_inventory_at(level, dx, dy, dz, src_inv, src_slot) else {
+                    let Some(src) = get_inventory_at(&cmap, level, dx, dy, dz, src_inv, src_slot)
+                    else {
                         continue;
                     };
 
@@ -312,19 +340,25 @@ fn drone_command<R: RngCore>(level: &mut LevelState, rng: &mut R) {
                     dst_slot,
                     count,
                 } => {
-                    let Some((dx, dy, dz)) =
-                        move_coord(x, y, z, this.as_deref().map(|v| &v.data), direction)
-                    else {
+                    let Some((dx, dy, dz)) = move_coord(
+                        &bounds,
+                        x,
+                        y,
+                        z,
+                        this.as_deref().map(|v| &v.data),
+                        direction,
+                    ) else {
                         continue;
                     };
 
-                    let Some(src) = this
-                        .and_then(|v| get_inventory(&mut v.data, src_inv)?.get_mut(src_slot))
-                        .map(|v| v as *mut ItemSlot)
-                    else {
+                    let Some(src) = this.and_then(|v| {
+                        Some(get_inventory(&mut v.data, src_inv)?.get_mut(src_slot)?
+                            as *mut ItemSlot)
+                    }) else {
                         continue;
                     };
-                    let Some(dst) = get_inventory_at(level, dx, dy, dz, dst_inv, dst_slot) else {
+                    let Some(dst) = get_inventory_at(&cmap, level, dx, dy, dz, dst_inv, dst_slot)
+                    else {
                         continue;
                     };
 
@@ -504,7 +538,7 @@ fn drone_command<R: RngCore>(level: &mut LevelState, rng: &mut R) {
             dir,
         } in &mut cmd_data
         {
-            let Some((x, y, z)) = move_coord(x, y, z, None, dir) else {
+            let Some((x, y, z)) = move_coord(&bounds, x, y, z, None, dir) else {
                 *valid = false;
                 continue;
             };
@@ -515,8 +549,9 @@ fn drone_command<R: RngCore>(level: &mut LevelState, rng: &mut R) {
                         let Some(BlockEntity {
                             data: BlockEntityData::IronOre(v),
                             ..
-                        }) = get_coord(x, y, z)
-                            .and_then(|id| level.block_entities_mut().get_mut(&id))
+                        }) = cmap
+                            .get(x, y, z)
+                            .and_then(|id| level.block_entities_mut().get_mut(id))
                         else {
                             unreachable!("block entity should be iron ore")
                         };
@@ -575,7 +610,138 @@ fn drone_command<R: RngCore>(level: &mut LevelState, rng: &mut R) {
         }
     }
 
-    drop(get_coord);
+    // Summon command
+    {
+        struct SummonData {
+            id: Uuid,
+            x: usize,
+            y: usize,
+            z: usize,
+            sx: usize,
+            sy: usize,
+            sz: usize,
+            data: Option<(ExecutionContext, BitFlags<DroneCapabilityFlags>)>,
+        }
+
+        let mut v = Vec::new();
+        for (
+            &id,
+            &mut BlockEntity {
+                ref mut data,
+                x,
+                y,
+                z,
+                ..
+            },
+        ) in level.block_entities_mut().entries_mut()
+        {
+            let (BlockEntityData::Drone(Drone {
+                command: ref mut cmd,
+                is_command_valid: ref mut valid,
+                capabilities: DroneCapability { flags, .. },
+                ..
+            })
+            | BlockEntityData::CentralTower(CentralTower {
+                command: ref mut cmd,
+                is_command_valid: ref mut valid,
+                capabilities: DroneCapability { flags, .. },
+                ..
+            })) = *data
+            else {
+                continue;
+            };
+
+            let Command::Summon(dir, ref mut exec, cap) = *cmd else {
+                continue;
+            };
+            let exec = take(exec);
+            *valid = false;
+            if !flags.contains(DroneCapabilityFlags::DroneSummon) {
+                continue;
+            }
+            let Some((dx, dy, dz)) = move_coord(&bounds, x, y, z, Some(data), dir) else {
+                continue;
+            };
+            v.push(SummonData {
+                id,
+                x: dx,
+                y: dy,
+                z: dz,
+                sx: x,
+                sy: y,
+                sz: z,
+                data: Some((exec, cap)),
+            });
+        }
+
+        v.sort_unstable_by(|a, b| {
+            a.x.cmp(&b.x)
+                .then_with(|| a.z.cmp(&b.z))
+                .then_with(|| a.y.cmp(&b.y))
+                .then_with(|| a.sx.cmp(&b.sx))
+                .then_with(|| a.sz.cmp(&b.sz))
+                .then_with(|| a.sy.cmp(&b.sy))
+                .then_with(|| a.id.cmp(&b.id))
+        });
+
+        let mut prev = None;
+        for &mut SummonData {
+            x,
+            y,
+            z,
+            ref mut data,
+            ..
+        } in &mut v
+        {
+            let c = (x, y, z);
+            if replace(&mut prev, Some(c)).is_some_and(|p| p == c)
+                || cmap.get(x, y, z).is_some()
+                || level.get_block(x, y, z).get().is_solid()
+            {
+                *data = None;
+            }
+        }
+
+        for SummonData {
+            x, y, z, data, id, ..
+        } in v
+        {
+            let Some(BlockEntity {
+                data:
+                    BlockEntityData::Drone(Drone {
+                        is_command_valid, ..
+                    })
+                    | BlockEntityData::CentralTower(CentralTower {
+                        is_command_valid, ..
+                    }),
+                ..
+            }) = level.block_entities_mut().get_mut(&id)
+            else {
+                unreachable!("block entity should exist")
+            };
+
+            let Some((exec, cap)) = data else {
+                continue;
+            };
+            *is_command_valid = true;
+
+            let mut drone = Drone::new();
+            drone.exec = Some(exec);
+            drone.capabilities.flags = cap;
+            if cap.contains(DroneCapabilityFlags::ExtendedInventory) {
+                drone.capabilities.ext_inventory = Some(Default::default());
+            }
+
+            level.block_entities_mut().add(BlockEntity::new(
+                x,
+                y,
+                z,
+                BlockEntityData::Drone(drone),
+            ));
+        }
+    }
+
+    drop(cmap);
 
     // Move command
     {
@@ -624,7 +790,7 @@ fn drone_command<R: RngCore>(level: &mut LevelState, rng: &mut R) {
                 d.is_command_valid = false;
                 continue;
             }
-            let Some((ex, ey, ez)) = move_coord(x, y, z, None, dir) else {
+            let Some((ex, ey, ez)) = move_coord(&bounds, x, y, z, None, dir) else {
                 d.is_command_valid = false;
                 continue;
             };

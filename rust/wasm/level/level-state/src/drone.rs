@@ -4,6 +4,32 @@ use rkyv::{Archive, Deserialize, Serialize};
 
 use crate::item::{BitFlagsDef, ItemSlot};
 
+#[derive(Debug, Default, Clone, PartialEq, Eq, Archive, Serialize, Deserialize)]
+#[rkyv(attr(non_exhaustive))]
+#[non_exhaustive]
+pub struct ExecutionContext {
+    pub executable: String,
+    pub args: Vec<String>,
+    pub env: Vec<(String, String)>,
+}
+
+impl ExecutionContext {
+    pub fn executable(mut self, value: String) -> Self {
+        self.executable = value;
+        self
+    }
+
+    pub fn args(mut self, value: Vec<String>) -> Self {
+        self.args = value;
+        self
+    }
+
+    pub fn env(mut self, value: Vec<(String, String)>) -> Self {
+        self.env = value;
+        self
+    }
+}
+
 #[derive(Debug, Clone, Archive, Serialize, Deserialize)]
 #[rkyv(attr(non_exhaustive))]
 #[non_exhaustive]
@@ -16,6 +42,9 @@ pub struct Drone {
     pub capabilities: DroneCapability,
 
     pub inventory: [ItemSlot; 9 * 3],
+
+    #[rkyv(with = Skip)]
+    pub exec: Option<ExecutionContext>,
 }
 
 impl Default for Drone {
@@ -34,6 +63,8 @@ impl Drone {
             capabilities: DroneCapability::new(),
 
             inventory: Default::default(),
+
+            exec: None,
         }
     }
 
@@ -46,6 +77,8 @@ impl Drone {
             capabilities: self.capabilities.clone(),
 
             inventory: self.inventory.clone(),
+
+            exec: None,
         }
     }
 }
@@ -119,12 +152,11 @@ pub enum Command {
     },
     InventoryOps(Vec<InventoryOp>),
 
-    Summon {
-        direction: Direction,
-        exec: String,
-        args: Vec<String>,
-        env: Vec<(String, String)>,
-    },
+    Summon(
+        Direction,
+        ExecutionContext,
+        #[rkyv(with = BitFlagsDef)] BitFlags<DroneCapabilityFlags>,
+    ),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Archive, Serialize, Deserialize)]
