@@ -403,6 +403,7 @@ dependencies = [
  "boa_gc",
  "boa_runtime",
  "clap",
+ "enumflags2",
  "level-state",
  "rkyv",
  "util-wasm",

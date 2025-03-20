@@ -18,14 +18,15 @@ use boa_engine::property::Attribute;
 use boa_engine::{JsResult, js_string};
 use boa_runtime::Console;
 use clap::Parser;
-use rkyv::api::high::access;
+use rkyv::api::high::{access, to_bytes_in};
 use rkyv::rancor::Panic;
+use rkyv::ser::writer::Buffer;
 use uuid::Uuid;
 
 use level_state::ArchivedLevelState;
-use util_wasm::read;
+use util_wasm::{read, write};
 
-use crate::level::{LEVEL, WAKERS, WRITTEN};
+use crate::level::{COMMAND, LEVEL, WAKERS};
 
 /// JS runner for drone.
 #[derive(Debug, Parser)]
@@ -53,10 +54,6 @@ struct Args {
 static mut UUID: Uuid = Uuid::nil();
 static mut CONTEXT: Option<Context> = None;
 
-#[repr(C, align(16))]
-struct BufferData([u8; 256]);
-static mut BUFFER: BufferData = BufferData([0; 256]);
-
 #[unsafe(no_mangle)]
 pub extern "C" fn init(a0: u32, a1: u32, a2: u32, a3: u32) {
     let context;
@@ -74,9 +71,9 @@ pub extern "C" fn init(a0: u32, a1: u32, a2: u32, a3: u32) {
 #[unsafe(no_mangle)]
 pub extern "C" fn tick() {
     unsafe {
-        *(&raw mut LEVEL) = None;
-        *(&raw mut LEVEL) = Some(access::<ArchivedLevelState, Panic>(read()).unwrap());
-        *(&raw mut WRITTEN) = false;
+        (*(&raw mut LEVEL)).1 = None;
+        (*(&raw mut LEVEL)).1 = Some(access::<ArchivedLevelState, Panic>(read()).unwrap());
+        (*(&raw mut LEVEL)).0 += 1;
 
         while let Some(w) = (*(&raw mut WAKERS)).pop() {
             if let Some(w) = w.take() {
@@ -88,7 +85,14 @@ pub extern "C" fn tick() {
             ctx.run_jobs();
         }
 
-        *(&raw mut LEVEL) = None;
+        (*(&raw mut LEVEL)).1 = None;
+        if let Some(cmd) = (*(&raw mut COMMAND)).take() {
+            write(|buf| {
+                to_bytes_in::<_, Panic>(&cmd, Buffer::from(buf))
+                    .unwrap()
+                    .len()
+            })
+        }
     }
 }
 
@@ -113,7 +117,6 @@ fn load_js(
     ctx.strict(strict);
 
     // Classes
-    ctx.register_global_class::<crate::level::Chunk>()?;
 
     // Console
     let console = Console::init(&mut ctx);
