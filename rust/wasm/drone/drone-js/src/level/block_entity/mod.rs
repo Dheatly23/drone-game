@@ -71,7 +71,9 @@ impl Wrapper {
             js_string!("uuid"),
             PropertyDescriptor::builder()
                 .value(format_uuid(&uuid))
-                .enumerable(true),
+                .writable(false)
+                .enumerable(true)
+                .configurable(false),
         );
         ret.clone()
             .upcast()
