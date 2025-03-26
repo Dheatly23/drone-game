@@ -26,7 +26,9 @@ use level_state::{
 };
 use util_wasm::ChannelId;
 
-use self::block_entity::{Wrapper as BlockEntityWrapper, WrapperData as BlockEntityWrapperData};
+use self::block_entity::{
+    CAP_FLAGS_LIST, Wrapper as BlockEntityWrapper, WrapperData as BlockEntityWrapperData,
+};
 use self::chunk::Chunk;
 use crate::UUID;
 use crate::util::{format_uuid, js_str_small};
@@ -725,18 +727,43 @@ impl Level {
             })
         }
 
-        fn cap_match<S: Deref<Target = str>>(
-            s: Option<S>,
-        ) -> Option<BitFlags<DroneCapabilityFlags>> {
-            Some(match s.as_deref()? {
-                "move" => make_bitflags!(DroneCapabilityFlags::Moving),
-                "fly" => make_bitflags!(DroneCapabilityFlags::Flying),
-                "break" => make_bitflags!(DroneCapabilityFlags::Breaker),
-                "silkTouch" => make_bitflags!(DroneCapabilityFlags::SilkTouch),
-                "backpack" => make_bitflags!(DroneCapabilityFlags::ExtendedInventory),
-                "spawn" => make_bitflags!(DroneCapabilityFlags::DroneSummon),
-                _ => return None,
-            })
+        fn into_cap(obj: &JsObject, ctx: &mut Context) -> JsResult<BitFlags<DroneCapabilityFlags>> {
+            let mut r = DroneCapabilityFlags::empty();
+            if let Ok(obj) = JsArray::from_object(obj.clone()) {
+                for i in 0usize..obj.length(ctx)?.try_into().map_err(JsError::from_rust)? {
+                    r |= match js_str_small(obj.get(i, ctx)?.try_js_into::<JsString>(ctx)?.as_str())
+                        .as_deref()
+                    {
+                        Some("move") => make_bitflags!(DroneCapabilityFlags::Moving),
+                        Some("fly") => make_bitflags!(DroneCapabilityFlags::Flying),
+                        Some("break") => make_bitflags!(DroneCapabilityFlags::Breaker),
+                        Some("silkTouch") => make_bitflags!(DroneCapabilityFlags::SilkTouch),
+                        Some("backpack") => make_bitflags!(DroneCapabilityFlags::ExtendedInventory),
+                        Some("spawn") => make_bitflags!(DroneCapabilityFlags::DroneSummon),
+                        _ => continue,
+                    };
+                }
+            } else if let Ok(obj) = JsSet::from_object(obj.clone()) {
+                for &(k, v) in CAP_FLAGS_LIST {
+                    if obj.has(k, ctx)? {
+                        r |= v;
+                    }
+                }
+            } else if let Ok(obj) = JsMap::from_object(obj.clone()) {
+                for &(k, v) in CAP_FLAGS_LIST {
+                    if obj.get(k, ctx)?.to_boolean() {
+                        r |= v;
+                    }
+                }
+            } else {
+                for &(k, v) in CAP_FLAGS_LIST {
+                    if obj.get(k, ctx)?.to_boolean() {
+                        r |= v;
+                    }
+                }
+            }
+
+            Ok(r)
         }
 
         fn to_cmd(obj: JsObject, ctx: &mut Context) -> JsResult<Option<Command>> {
@@ -885,30 +912,10 @@ impl Level {
                         .args(args)
                         .env(env);
 
-                    let cap: JsObject = obj.get(js_string!("capability"), ctx)?.try_js_into(ctx)?;
-                    let cap = if let Ok(cap) = JsSet::from_object(cap.clone()) {
-                        let mut r = DroneCapabilityFlags::empty();
-                        let it = cap.keys(ctx)?;
-                        while let Some(s) = it.next(ctx)?.try_js_into::<Option<JsString>>(ctx)? {
-                            let Some(v) = cap_match(js_str_small(s.as_str())) else {
-                                return Ok(None);
-                            };
-                            r |= v;
-                        }
-                        r
-                    } else {
-                        let mut r = DroneCapabilityFlags::empty();
-                        let cap = JsArray::from_object(cap)?;
-                        for i in 0usize..cap.length(ctx)?.try_into().map_err(JsError::from_rust)? {
-                            let Some(v) = cap_match(js_str_small(
-                                cap.get(i, ctx)?.try_js_into::<JsString>(ctx)?.as_str(),
-                            )) else {
-                                return Ok(None);
-                            };
-                            r |= v;
-                        }
-                        r
-                    };
+                    let cap = into_cap(
+                        &obj.get(js_string!("capability"), ctx)?.try_js_into(ctx)?,
+                        ctx,
+                    )?;
 
                     Some(Command::Summon(dir, exec, cap))
                 }

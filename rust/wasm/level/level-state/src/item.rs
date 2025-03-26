@@ -96,7 +96,7 @@ impl<S: Fallible + ?Sized> Serialize<S> for Item {
 pub(crate) struct BitFlagsDef;
 
 #[repr(transparent)]
-pub(crate) struct ArchivedBitFlagsDef<T>
+pub struct ArchivedBitFlagsDef<T>
 where
     T: BitFlag,
     T::Numeric: Archive,
@@ -171,7 +171,7 @@ where
     T: BitFlag,
     T::Numeric: Archive,
 {
-    fn into_bit_flags(self) -> BitFlags<T>
+    pub fn into_bit_flags(self) -> BitFlags<T>
     where
         <T::Numeric as Archive>::Archived: Into<T::Numeric>,
     {
