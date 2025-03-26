@@ -10,8 +10,6 @@ signal camera_unlocked()
 @export_node_path("Node") var args_node
 @export_node_path("Button") var exec_button
 
-@export var wasm_modules: Array[WasmModule] = []
-
 @onready var lvl: Level = get_node(level)
 @onready var uuid_txt: LineEdit = get_node(uuid_text)
 @onready var lock_btn: CheckButton = get_node(camera_lock_button)
@@ -21,13 +19,6 @@ signal camera_unlocked()
 
 var sel_uuid := Vector4i.ZERO
 var is_exec := false
-
-var wasi_ctx := WasiContext.new().initialize({})
-
-func _process(_delta: float) -> void:
-	var exists := lvl.block_entities.has(sel_uuid)
-	exec_btn.disabled = not exists
-	lock_btn.disabled = not exists
 
 func select_drone(uuid) -> void:
 	var data = lvl.block_entities.get(uuid) if uuid != null else null
@@ -64,25 +55,17 @@ func exec_toggled() -> void:
 	var n = lvl.block_entities[sel_uuid]["node"]
 
 	if is_exec:
-		n.deinitialize_wasm()
+		lvl.node_stop_execute(sel_uuid)
 	elif wasm_lst.selected != -1:
 		var args: Array = [wasm_lst.get_item_text(wasm_lst.selected)]
 		for i in range(args_lst.get_child_count() - 1):
 			args.push_back(args_lst.get_child(i).get_node(^"Arg").text)
 
-		n.initialize_wasm(
-			wasm_modules[wasm_lst.selected],
-			{
-				"epoch.enable": true,
-				"epoch.timeout": 30.0,
-				"wasi.enable": true,
-				"wasi.context": wasi_ctx,
-				"wasi.args": args,
-				"wasi.stdout.bindMode": "context",
-				"wasi.stdout.bufferMode": "line",
-				"wasi.stderr.bindMode": "context",
-				"wasi.stderr.bufferMode": "line",
-			},
+		lvl.node_execute_wasm(
+			sel_uuid,
+			wasm_lst.get_item_text(wasm_lst.selected),
+			args,
+			{},
 		)
 
 	is_exec = n.is_wasm_initialized()
@@ -100,10 +83,23 @@ func camera_lock_toggled() -> void:
 		camera_unlocked.emit()
 
 func _ready() -> void:
+	var wasi_ctx := WasiContext.new().initialize({})
 	wasi_ctx.stdout_emit.connect(__log)
 	wasi_ctx.stderr_emit.connect(__log)
 	wasi_ctx.mount_physical_dir(ProjectSettings.globalize_path("res://js"), "/js")
 	wasi_ctx.fs_readonly = true
+	lvl.wasi_ctx = wasi_ctx
+
+	var a := lvl.wasm_executables.keys()
+	a.sort()
+	for k in a:
+		wasm_lst.add_item(k)
+	wasm_lst.selected = -1
+
+func _process(_delta: float) -> void:
+	var exists := lvl.block_entities.has(sel_uuid)
+	exec_btn.disabled = not exists
+	lock_btn.disabled = not exists
 
 func __log(msg: String) -> void:
 	print(msg.strip_edges(false, true))

@@ -63,9 +63,9 @@ func query_ray(pos: Vector3, norm: Vector3) -> Dictionary:
 	ret.make_read_only()
 	return ret
 
-func query_command(name: StringName) -> PackedByteArray:
+func query_command(cmd_name: StringName) -> PackedByteArray:
 	buffer_data = PackedByteArray()
-	wasm_instance.call_wasm(name, [])
+	wasm_instance.call_wasm(cmd_name, [])
 	return buffer_data
 
 func __wasm_random(p: int, n: int) -> void:

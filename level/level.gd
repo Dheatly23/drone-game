@@ -5,6 +5,8 @@ signal chunks_updated()
 signal initialized()
 signal tick_processed(time: float)
 
+@export var wasm_executables: Dictionary[String, WasmModule] = {}
+
 @export_group("Chunk Size")
 @export_range(1, 64) var chunk_size_x := 1
 @export_range(1, 64) var chunk_size_y := 1
@@ -58,6 +60,20 @@ signal tick_processed(time: float)
 				results = [],
 				callable = __wasm_entity_iron_ore,
 			},
+			"entity_central_tower": {
+				params = [
+					WasmHelper.TYPE_I32,
+					WasmHelper.TYPE_I32,
+					WasmHelper.TYPE_I32,
+					WasmHelper.TYPE_I32,
+					WasmHelper.TYPE_I32,
+					WasmHelper.TYPE_I32,
+					WasmHelper.TYPE_I32,
+					WasmHelper.TYPE_I32,
+				],
+				results = [],
+				callable = __wasm_entity_central_tower,
+			},
 			"entity_drone": {
 				params = [
 					WasmHelper.TYPE_I32,
@@ -71,6 +87,17 @@ signal tick_processed(time: float)
 				results = [],
 				callable = __wasm_entity_drone,
 			},
+			"entity_drone_exec": {
+				params = [
+					WasmHelper.TYPE_I32,
+					WasmHelper.TYPE_I32,
+					WasmHelper.TYPE_I32,
+					WasmHelper.TYPE_I32,
+					WasmHelper.TYPE_I32,
+				],
+				results = [],
+				callable = __wasm_entity_drone_exec,
+			},
 		},
 	},
 	{
@@ -79,6 +106,8 @@ signal tick_processed(time: float)
 	},
 )
 @onready var level_query := $Query
+
+var wasi_ctx: WasiContext
 
 var chunks := {}
 var block_entities := {}
@@ -174,6 +203,26 @@ func import_level(data: PackedByteArray) -> void:
 	mutex.unlock()
 	init_chunks()
 
+func node_execute_wasm(uuid: Vector4i, module: String, args: Array, envs: Dictionary) -> void:
+	block_entities[uuid]["node"].initialize_wasm(
+		wasm_executables[module],
+		{
+			"epoch.enable": true,
+			"epoch.timeout": 30.0,
+			"wasi.enable": true,
+			"wasi.context": wasi_ctx,
+			"wasi.args": args,
+			"wasi.envs": envs,
+			"wasi.stdout.bindMode": "context",
+			"wasi.stdout.bufferMode": "line",
+			"wasi.stderr.bindMode": "context",
+			"wasi.stderr.bufferMode": "line",
+		},
+	)
+
+func node_stop_execute(uuid: Vector4i) -> void:
+	block_entities[uuid]["node"].deinitialize_wasm()
+
 func tick() -> bool:
 	__work_mutex.lock()
 
@@ -212,7 +261,8 @@ func __tick_fn() -> void:
 	var drones := []
 	for k in block_entities:
 		var v: Dictionary = block_entities[k]
-		if v["type"] != "drone":
+		var t: String = v["type"]
+		if t != "drone" and t != "central_tower":
 			continue
 		drones.push_back(v["node"])
 
@@ -382,6 +432,70 @@ func __wasm_entity_drone(a0: int, a1: int, a2: int, a3: int, x: int, y: int, z: 
 
 	var data := {
 		type = "drone",
+		coord = Vector3i(x, y, z),
+		node = node,
+	}
+	data.make_read_only()
+	block_entities[uuid] = data
+	node.update_data(data)
+
+func __exec_node(n: Node3D, p: int) -> void:
+	var a: Array = wasm_instance.read_struct("6I", p)
+	var exec := wasm_instance.memory_read(a[0], a[1]).get_string_from_utf8()
+	var args := []
+	p = a[2]
+	for i in range(a[3]):
+		var arg: Array = wasm_instance.read_struct("2I", p + i * 8)
+		args.push_back(wasm_instance.memory_read(arg[0], arg[1]).get_string_from_utf8())
+	var envs := {}
+	p = a[4]
+	for i in range(a[5]):
+		var env: Array = wasm_instance.read_struct("4I", p + i * 18)
+		var k := wasm_instance.memory_read(env[0], env[1]).get_string_from_utf8()
+		var v := wasm_instance.memory_read(env[2], env[3]).get_string_from_utf8()
+		envs[k] = v
+
+	n.initialize_wasm.call_deferred(
+		wasm_executables[exec],
+		{
+			"epoch.enable": true,
+			"epoch.timeout": 30.0,
+			"wasi.enable": true,
+			"wasi.context": wasi_ctx,
+			"wasi.args": args,
+			"wasi.envs": envs,
+			"wasi.stdout.bindMode": "context",
+			"wasi.stdout.bufferMode": "line",
+			"wasi.stderr.bindMode": "context",
+			"wasi.stderr.bufferMode": "line",
+		},
+	)
+
+func __wasm_entity_drone_exec(a0: int, a1: int, a2: int, a3: int, p: int) -> void:
+	__exec_node(block_entities.get(Vector4i(a0, a1, a2, a3))["node"], p)
+
+func __wasm_entity_central_tower(a0: int, a1: int, a2: int, a3: int, x: int, y: int, z: int, p: int) -> void:
+	var uuid := Vector4i(a0, a1, a2, a3)
+	var old = block_entities.get(uuid)
+
+	var node: Node3D
+	if old == null:
+		node = preload("res://central_tower/central_tower.tscn").instantiate()
+		node.uuid = uuid
+		node.name = "CentralTower_%8x%8x%8x%8x" % [
+			a0 & 0xffff_ffff,
+			a1 & 0xffff_ffff,
+			a2 & 0xffff_ffff,
+			a3 & 0xffff_ffff,
+		]
+		$"Central Towers".add_child(node)
+
+		__exec_node(node, p)
+	else:
+		node = old["node"]
+
+	var data := {
+		type = "central_tower",
 		coord = Vector3i(x, y, z),
 		node = node,
 	}

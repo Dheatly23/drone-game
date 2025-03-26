@@ -12,6 +12,8 @@ script = ExtResource("1_2xasv")
 
 [node name="Drones" type="Node3D" parent="."]
 
+[node name="Central Towers" type="Node3D" parent="."]
+
 [node name="MultiMesh Controller" type="Node3D" parent="."]
 visible = false
 script = ExtResource("3_pdm1g")
