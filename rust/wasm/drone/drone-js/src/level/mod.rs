@@ -2,8 +2,8 @@ mod block_entity;
 mod chunk;
 
 use std::cell::{Cell, RefCell};
+use std::cmp::Ordering;
 use std::collections::hash_map::{Entry, HashMap};
-use std::fmt::{Debug, Write as _};
 use std::future::Future;
 use std::mem::{MaybeUninit, replace};
 use std::ops::Deref;
@@ -28,7 +28,8 @@ use util_wasm::ChannelId;
 
 use self::block_entity::{Wrapper as BlockEntityWrapper, WrapperData as BlockEntityWrapperData};
 use self::chunk::Chunk;
-use crate::{UUID, js_str_small};
+use crate::UUID;
+use crate::util::{format_uuid, js_str_small};
 
 type WakerCell = Rc<Cell<Option<Waker>>>;
 
@@ -178,9 +179,10 @@ impl Level {
             js_string!("tick"),
             0,
         );
+        let uuid = unsafe { &*(&raw const UUID) };
         builder.property(
             js_string!("uuid"),
-            JsString::from(unsafe { (*(&raw const UUID)).as_hyphenated().to_string() }),
+            format_uuid(uuid),
             Attribute::CONFIGURABLE | Attribute::ENUMERABLE | Attribute::READONLY,
         );
 
@@ -278,21 +280,18 @@ impl Level {
                 .into());
         }
 
-        let k = [x, y, z];
-        let v = this.borrow().data().chunk_cache.get(&k).cloned();
-        Ok(match v {
-            Some(v) => v.upcast(),
-            None => {
+        let mut guard = this.borrow_mut();
+        let data = guard.data_mut();
+        Ok(match data.chunk_cache.entry([x, y, z]) {
+            Entry::Occupied(e) => e.get().clone().upcast(),
+            Entry::Vacant(e) => {
+                let &[x, y, z] = e.key();
                 let c = JsObject::new(
                     ctx.root_shape(),
-                    Some(this.borrow().data().chunk_proto.clone()),
+                    Some(data.chunk_proto.clone()),
                     Chunk { x, y, z },
                 );
-                this.borrow_mut()
-                    .data_mut()
-                    .chunk_cache
-                    .insert(k, c.clone());
-                let c = c.upcast();
+                let c = e.insert(c).clone().upcast();
                 c.set_integrity_level(IntegrityLevel::Frozen, ctx)?;
                 c
             }
@@ -315,6 +314,7 @@ impl Level {
                             k,
                         )
                     }));
+                    v.sort_unstable();
                     Ok(())
                 },
             )
@@ -331,16 +331,7 @@ impl Level {
         let mut guard = this.borrow_mut();
         let coords = guard.data_mut().get_block_entity_coords()?;
 
-        let mut s = String::new();
-        Ok(JsArray::from_iter(
-            coords.iter().filter_map(move |(_, _, _, k)| {
-                s.clear();
-                write!(s, "{}", k.as_hyphenated()).ok()?;
-                Some(JsString::from(&*s).into())
-            }),
-            ctx,
-        )
-        .into())
+        Ok(JsArray::from_iter(coords.iter().map(|(_, _, _, k)| format_uuid(k).into()), ctx).into())
     }
 
     fn get_block_entity_uuids_at(
@@ -356,17 +347,18 @@ impl Level {
         let mut guard = this.borrow_mut();
         let coords = guard.data_mut().get_block_entity_coords()?;
 
-        let mut s = String::new();
-        Ok(JsArray::from_iter(
-            coords.iter().filter_map(move |&(vx, vy, vz, ref k)| {
-                if vx != x || vy != y || vz != z {
-                    return None;
-                }
+        let i = coords.partition_point(|&(x_, y_, z_, _)| {
+            matches!(
+                x_.cmp(&x).then_with(|| y_.cmp(&y)).then_with(|| z_.cmp(&z)),
+                Ordering::Less,
+            )
+        });
 
-                s.clear();
-                write!(s, "{}", k.as_hyphenated()).ok()?;
-                Some(JsString::from(&*s).into())
-            }),
+        Ok(JsArray::from_iter(
+            coords[i..]
+                .iter()
+                .take_while(|&&(x_, y_, z_, _)| x_ == x && y_ == y && z_ == z)
+                .map(|(_, _, _, k)| format_uuid(k).into()),
             ctx,
         )
         .into())
@@ -378,7 +370,8 @@ impl Level {
             &args
                 .get_or_undefined(0)
                 .try_js_into::<JsString>(ctx)?
-                .to_std_string_lossy(),
+                .to_std_string()
+                .map_err(JsError::from_rust)?,
         )
         .map_err(JsError::from_rust)?;
 

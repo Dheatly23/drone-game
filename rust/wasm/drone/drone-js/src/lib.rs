@@ -3,6 +3,7 @@
 mod executor;
 mod level;
 mod module;
+mod util;
 
 use std::env::vars_os;
 use std::ffi::{OsStr, OsString};
@@ -10,7 +11,6 @@ use std::fmt::Debug;
 use std::path::PathBuf;
 use std::rc::Rc;
 
-use arrayvec::ArrayString;
 use boa_engine::object::ObjectInitializer;
 use boa_engine::object::builtins::{JsArray, JsMap};
 use boa_engine::prelude::*;
@@ -169,14 +169,4 @@ fn load_js(
     }
 
     Ok(ctx)
-}
-
-fn js_str_small(s: JsStr<'_>) -> Option<ArrayString<32>> {
-    let mut r = ArrayString::<32>::new();
-
-    for c in char::decode_utf16(s.iter()) {
-        r.try_push(c.ok()?).ok()?;
-    }
-
-    Some(r)
 }

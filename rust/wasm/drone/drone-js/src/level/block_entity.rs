@@ -12,6 +12,7 @@ use level_state::{
 };
 
 use super::{check_level, get_level, item_to_str};
+use crate::util::format_uuid;
 
 #[derive(Debug, Trace, JsData, Finalize)]
 pub struct Wrapper {
@@ -59,7 +60,7 @@ impl Wrapper {
         ret.insert_property(
             js_string!("uuid"),
             PropertyDescriptor::builder()
-                .value(JsString::from(uuid.hyphenated().to_string()))
+                .value(format_uuid(&uuid))
                 .enumerable(true),
         );
         ret.clone()
