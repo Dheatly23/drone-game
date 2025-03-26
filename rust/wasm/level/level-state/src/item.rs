@@ -142,6 +142,7 @@ unsafe impl<T> Portable for ArchivedBitFlagsDef<T>
 where
     T: BitFlag,
     T::Numeric: Archive,
+    <T::Numeric as Archive>::Archived: Portable,
 {
 }
 
